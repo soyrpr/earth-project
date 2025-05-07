@@ -33,11 +33,11 @@ export class SceneManager {
   }
 
   private static createLights(): void {
-    const hemilight = new HemisphereLight(0xffffff, 0x000000, 2);
+    const hemilight = new HemisphereLight(0xffffff, 0x000000, 0.3);
     SceneManager.scene.add(hemilight);
 
     const sun = new DirectionalLight(0xffffff, 1);
-    sun.position.set(5, 10, 5);
+    sun.position.set(10, 10, 10);
     sun.castShadow = true;
 
     sun.shadow.mapSize.width = 2048;
