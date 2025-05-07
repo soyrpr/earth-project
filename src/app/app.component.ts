@@ -4,7 +4,7 @@ import { GlobeComponent } from "./components/globe/globe.component";
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, GlobeComponent  ],
+  imports: [RouterOutlet, GlobeComponent ],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
 })

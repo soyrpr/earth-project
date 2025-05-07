@@ -1,7 +1,9 @@
-import { Color, DirectionalLight, HemisphereLight, Mesh, MeshStandardMaterial, PerspectiveCamera, Scene, SphereGeometry, TextureLoader } from "three/src/Three.Core.js";
+import { Color, DirectionalLight, HemisphereLight, IcosahedronGeometry, Mesh, MeshBasicMaterial, MeshStandardMaterial, PerspectiveCamera, Scene, SphereGeometry, TextureLoader, Vector2 } from "three/src/Three.Core.js";
 import { Starfield } from "./starfield";
 import { Earth } from "./earth";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { EffectComposer, RenderPass, UnrealBloomPass } from "three/examples/jsm/Addons.js";
+import { WebGLRenderer } from "three";
 
 
 export class SceneManager {
@@ -10,6 +12,9 @@ export class SceneManager {
   private static starfield: Starfield;
   private static earth : Earth;
   private static controls: OrbitControls
+  private static sunMesh: Mesh;
+  private static sunLight: DirectionalLight;
+  private static composer: EffectComposer;
 
   public static init(): void {
     SceneManager.createScene();
@@ -33,20 +38,33 @@ export class SceneManager {
   }
 
   private static createLights(): void {
-    const hemilight = new HemisphereLight(0xffffff, 0x000000, 0.3);
+    const hemilight = new HemisphereLight(0xffffff, 0x000000, 0.2);
     SceneManager.scene.add(hemilight);
 
-    const sun = new DirectionalLight(0xffffff, 1);
-    sun.position.set(10, 10, 10);
-    sun.castShadow = true;
-
-    sun.shadow.mapSize.width = 2048;
-    sun.shadow.mapSize.height = 2048;
-    sun.shadow.camera.near = 0.5;
-    sun.shadow.camera.far = 50;
-
+    const geometry = new IcosahedronGeometry(1, 15);
+    const material = new MeshBasicMaterial({color: new Color('#FDB813')});
+    SceneManager.sunMesh = new Mesh(geometry, material);
+    SceneManager.sunMesh.position.set(150, 1, 10);
+    SceneManager.sunMesh.layers.set(1);
   
-    SceneManager.scene.add(sun);
+    SceneManager.scene.add(this.sunMesh);
+
+    SceneManager.sunLight = new DirectionalLight(0xffffff, 1);
+    SceneManager.sunLight.position.copy(SceneManager.sunMesh.position);
+    SceneManager.scene.add(SceneManager.sunLight);
+  }
+
+  public static initPostProcessing(renderer: WebGLRenderer): void {
+    const renderScene = new RenderPass(SceneManager.scene, SceneManager.camera);
+    const bloomPass = new UnrealBloomPass(new Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+    bloomPass.threshold = 0;
+    bloomPass.strength = 2;
+    bloomPass.radius = 0;
+
+    SceneManager.composer = new EffectComposer(renderer);
+    SceneManager.composer.setSize(window.innerWidth, window.innerHeight);
+    SceneManager.composer.addPass(renderScene);
+    SceneManager.composer.addPass(bloomPass);  
   }
 
   public static update(): void {
