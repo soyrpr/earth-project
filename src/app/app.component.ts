@@ -10,4 +10,5 @@ import { GlobeComponent } from "./components/globe/globe.component";
 })
 export class AppComponent {
   title = 'earth-project';
+
 }

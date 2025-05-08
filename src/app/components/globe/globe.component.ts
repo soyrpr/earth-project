@@ -9,7 +9,7 @@ import { RendererManager } from '../../../core/renderer.manager';
 })
 export class GlobeComponent {
 
-  ngAfterViewInit() {
+  ngAfterViewInit(): void {
     RendererManager.start();
   }
 }

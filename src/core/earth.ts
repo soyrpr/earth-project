@@ -5,11 +5,13 @@ import {
   SphereGeometry,
   TextureLoader,
   Vector3,
-  ShaderMaterial
+  ShaderMaterial,
+  MeshBasicMaterial
 } from "three";
 
 export class Earth {
   private earthMesh!: Mesh;
+  private readonly radius = 30;
 
   constructor(private readonly scene: Scene, private readonly camera: Camera) {
     this.createEarth();
@@ -17,11 +19,12 @@ export class Earth {
 
   private createEarth(): void {
     const loader = new TextureLoader();
+    const radius = 30;
 
     const dayTexture = loader.load('assets/textures/earthmap1k.jpg');
     const nightTexture = loader.load('assets/textures/earthlights1k.jpg');
 
-    const geometry = new SphereGeometry(3, 64, 64);
+    const geometry = new SphereGeometry(radius, 64, 64);
 
     const shaderMaterial = new ShaderMaterial({
       uniforms: {
@@ -68,5 +71,27 @@ export class Earth {
 
   public update(): void {
     this.earthMesh.rotation.y += 0.001;
+  }
+
+  private calcPosFromLatLonRad(lat: number, lon: number, radius:number): [number, number, number]{
+    const phi   = (90-lat)*(Math.PI/180);
+    const theta = (lon+180)*(Math.PI/180);
+
+    const x = -(radius * Math.sin(phi)*Math.cos(theta));
+    const z = (radius * Math.sin(phi)*Math.sin(theta));
+    const y = (radius * Math.cos(phi));
+
+    return [x, y, z];
+  }
+
+  public addMarker(lat: number, lon: number, color: number = 0xff0000): void {
+    const position = this.calcPosFromLatLonRad(lat, lon, this.radius + 3);
+
+    const markerGeometry = new SphereGeometry(0.5, 16, 16);
+    const markerMaterial = new MeshBasicMaterial({ color });
+    const marker = new Mesh(markerGeometry, markerMaterial);
+    marker.position.set(...position);
+
+    this.earthMesh.add(marker);
   }
 }

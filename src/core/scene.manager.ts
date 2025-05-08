@@ -5,13 +5,12 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { EffectComposer, RenderPass, UnrealBloomPass } from "three/examples/jsm/Addons.js";
 import { WebGLRenderer } from "three";
 
-
 export class SceneManager {
   public static scene: Scene;
   public static camera: PerspectiveCamera;
   private static starfield: Starfield;
   private static earth : Earth;
-  private static controls: OrbitControls
+  private static readonly controls: OrbitControls
   private static sunMesh: Mesh;
   private static sunLight: DirectionalLight;
   private static composer: EffectComposer;
@@ -22,7 +21,7 @@ export class SceneManager {
     SceneManager.createLights();
     SceneManager.starfield = new Starfield(SceneManager.scene);
     SceneManager.earth = new Earth(SceneManager.scene, SceneManager.camera);
-  
+    SceneManager.earth.addMarker(36.7213, -4.4214, 20);
   }
 
   private static createScene(): void {
@@ -32,7 +31,7 @@ export class SceneManager {
 
   private static createCamera():void {
     SceneManager.camera = new PerspectiveCamera(34, window.innerWidth / window.innerHeight, 1, 2000);
-    SceneManager.camera.position.set(10, 5, 10);
+    SceneManager.camera.position.set(200, 5, 10);
     SceneManager.camera.lookAt(0, 0, 0);
     SceneManager.scene.add(SceneManager.camera);
   }
@@ -46,7 +45,7 @@ export class SceneManager {
     SceneManager.sunMesh = new Mesh(geometry, material);
     SceneManager.sunMesh.position.set(150, 1, 10);
     SceneManager.sunMesh.layers.set(1);
-  
+
     SceneManager.scene.add(this.sunMesh);
 
     SceneManager.sunLight = new DirectionalLight(0xffffff, 1);
@@ -64,10 +63,10 @@ export class SceneManager {
     SceneManager.composer = new EffectComposer(renderer);
     SceneManager.composer.setSize(window.innerWidth, window.innerHeight);
     SceneManager.composer.addPass(renderScene);
-    SceneManager.composer.addPass(bloomPass);  
+    SceneManager.composer.addPass(bloomPass);
   }
 
   public static update(): void {
-    this.earth?.update();    
+    this.earth?.update();
   }
 }

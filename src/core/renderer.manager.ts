@@ -36,17 +36,16 @@ export class RendererManager {
     this.renderer.shadowMap.type = PCFSoftShadowMap;
 
     const controls = new OrbitControls(SceneManager.camera, RendererManager.renderer.domElement);
-    controls.enableDamping = true; // Habilitar el suavizado
-    controls.dampingFactor = 0.25; // Factor de suavizado
-    controls.enableZoom = true; // Permite el zoom
-
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.25;
+    controls.enableZoom = true;
 
   }
 
   private static renderLoop(): void {
     SceneManager.update();
     requestAnimationFrame(RendererManager.renderLoop);
-    
+
     if (RendererManager.composer) {
       RendererManager.composer.render();
     } else {
