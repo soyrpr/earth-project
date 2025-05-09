@@ -11,7 +11,6 @@ export class SceneManager {
   public static camera: PerspectiveCamera;
   private static starfield: Starfield;
   private static earth : Earth;
-  private static readonly controls: OrbitControls
   private static composer: EffectComposer;
   private static sun: Sun;
   private static sunLight: DirectionalLight;

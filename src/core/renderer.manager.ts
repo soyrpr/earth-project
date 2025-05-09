@@ -8,15 +8,16 @@ export class RendererManager {
   private static renderer: WebGLRenderer;
   public static canvas: HTMLCanvasElement;
   private static composer: EffectComposer;
+  private static controls: OrbitControls;
 
   private constructor() {
-    SceneManager.init();
     RendererManager.init();
   }
 
   private static init(): void {
     RendererManager.getCanvas();
     RendererManager.createRenderer();
+    RendererManager.handleResize();
     RendererManager.renderLoop();
   }
 
@@ -26,7 +27,6 @@ export class RendererManager {
   }
 
   private static createRenderer(): void {
-
     RendererManager.getCanvas();
     RendererManager.renderer = new WebGLRenderer({ antialias: true, canvas: RendererManager.canvas });
     RendererManager.renderer.setPixelRatio(window.devicePixelRatio);
@@ -35,12 +35,14 @@ export class RendererManager {
     RendererManager.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = PCFSoftShadowMap;
 
-    const controls = new OrbitControls(SceneManager.camera, RendererManager.renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.25;
-    controls.enableZoom = true;
-    controls.minDistance= 60;
-    controls.maxDistance = 700;
+    if(!RendererManager.controls){
+      const controls = new OrbitControls(SceneManager.camera, RendererManager.renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.25;
+      controls.enableZoom = true;
+      controls.minDistance= 60;
+      controls.maxDistance = 700;
+    }
   }
 
   private static renderLoop(): void {
@@ -62,5 +64,17 @@ export class RendererManager {
 
   public static getRenderer(): WebGLRenderer {
     return RendererManager.renderer;
+  }
+
+  public static handleResize(): void {
+    window.addEventListener('resize', ()=> {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+
+      SceneManager.camera.aspect = width / height;
+      SceneManager.camera.updateProjectionMatrix();
+
+      RendererManager.renderer.setSize(width, height);
+    });
   }
 }
