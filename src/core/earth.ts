@@ -1,13 +1,8 @@
-import {
-  Camera,
-  Mesh,
-  Scene,
-  SphereGeometry,
-  TextureLoader,
-  Vector3,
-  ShaderMaterial,
-  MeshBasicMaterial
-} from "three";
+import { Camera,  Mesh,  Scene,  SphereGeometry,  TextureLoader,  Vector3,  ShaderMaterial,  MeshBasicMaterial} from "three";
+
+import vertexShader from '../assets/shaders/vertexShader';
+import fragmentShader from '../assets/shaders/fragmentShader';
+import * as satellite from 'satellite.js';
 
 export class Earth {
   private earthMesh!: Mesh;
@@ -19,12 +14,11 @@ export class Earth {
 
   private createEarth(): void {
     const loader = new TextureLoader();
-    const radius = 30;
 
     const dayTexture = loader.load('assets/textures/earthmap1k.jpg');
     const nightTexture = loader.load('assets/textures/earthlights1k.jpg');
 
-    const geometry = new SphereGeometry(radius, 64, 64);
+    const geometry = new SphereGeometry(this.radius, 64, 64);
 
     const shaderMaterial = new ShaderMaterial({
       uniforms: {
@@ -32,38 +26,10 @@ export class Earth {
         nightTexture: { value: nightTexture },
         lightDirection: { value: new Vector3(1, 0, 1).normalize() }
       },
-      vertexShader: `
-        varying vec2 vUv;
-        varying vec3 vNormal;
-        varying vec3 vPosition;
-
-        void main() {
-          vUv = uv;
-          vNormal = normalize(normalMatrix * normal);
-          vPosition = (modelMatrix * vec4(position, 1.0)).xyz;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform sampler2D dayTexture;
-        uniform sampler2D nightTexture;
-        uniform vec3 lightDirection;
-
-        varying vec2 vUv;
-        varying vec3 vNormal;
-        varying vec3 vPosition;
-
-        void main() {
-          float dotProduct = dot(normalize(vNormal), normalize(lightDirection));
-          float mixAmount = clamp(dotProduct * 2.0, 0.0, 1.0);
-
-          vec4 dayColor = texture2D(dayTexture, vUv);
-          vec4 nightColor = texture2D(nightTexture, vUv);
-
-          gl_FragColor = mix(nightColor, dayColor, mixAmount);
-        }
-      `,
+      vertexShader,
+      fragmentShader,
     });
+
 
     this.earthMesh = new Mesh(geometry, shaderMaterial);
     this.scene.add(this.earthMesh);
@@ -94,4 +60,32 @@ export class Earth {
 
     this.earthMesh.add(marker);
   }
+
+  public setLightDirection(dir: Vector3): void {
+    const material = this.earthMesh.material as ShaderMaterial;
+    material.uniforms['lightDirection'].value = dir.clone().normalize();
+  }
+
+
+  public addMovingMarker(lat: number, lon: number, color: number = 0x00ffff): Mesh {
+    const position = this.calcPosFromLatLonRad(lat, lon, this.radius +3);
+
+    const markerGeometry = new SphereGeometry(0.5, 16, 16);
+    const markerMaterial = new MeshBasicMaterial({ color });
+    const marker = new Mesh(markerGeometry, markerMaterial);
+    marker.position.set(...position);
+
+    this.earthMesh.add(marker);
+    return marker;
+  }
+
 }
+
+const satellites = [
+  {
+    id: "51575",
+    tle_line_1: "1 62877U 25023B   25033.45084872 -.00000130  00000-0  00000+0 0  9997",
+    tle_line_2: "2 62877  21.9804 304.0630 7211676 175.5316  64.1386  2.29593579    09",
+    space_object: 2
+  }
+];

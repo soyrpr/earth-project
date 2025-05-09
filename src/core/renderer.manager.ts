@@ -39,7 +39,8 @@ export class RendererManager {
     controls.enableDamping = true;
     controls.dampingFactor = 0.25;
     controls.enableZoom = true;
-
+    controls.minDistance= 60;
+    controls.maxDistance = 700;
   }
 
   private static renderLoop(): void {
@@ -62,5 +63,4 @@ export class RendererManager {
   public static getRenderer(): WebGLRenderer {
     return RendererManager.renderer;
   }
-
 }
