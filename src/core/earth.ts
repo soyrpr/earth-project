@@ -1,5 +1,5 @@
 import * as satellite from 'satellite.js';
-import { Mesh, SphereGeometry, MeshBasicMaterial, Scene, Camera, Vector3, ShaderMaterial, TextureLoader } from 'three';
+import { Mesh, SphereGeometry, MeshBasicMaterial, Scene, Camera, Vector3, ShaderMaterial, TextureLoader, MathUtils, Spherical } from 'three';
 import fragmentShader from '../assets/shaders/fragmentShader';
 import vertexShader from '../assets/shaders/vertexShader';
 
@@ -42,6 +42,7 @@ export class Earth {
 
     return [x, y, z];
   }
+
 
   // Método para agregar un marcador que se moverá con el satélite
   public addMovingMarker(lat: number, lon: number, color: number): Mesh {
@@ -97,6 +98,10 @@ export class Earth {
         }, intervalTime);
       }
     });
+  }
+
+    getRadius() {
+    return this.radius;
   }
 
   public update(): void {
