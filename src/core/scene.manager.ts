@@ -1,19 +1,22 @@
-import { Color, DirectionalLight, HemisphereLight, PerspectiveCamera, Scene, Vector2, Vector3 } from "three/src/Three.Core.js";
-import { Starfield } from "./starfield";
+import * as satellite from "satellite.js";
+import { CanvasTexture, Color, DirectionalLight, HemisphereLight, LinearFilter, Mesh, PerspectiveCamera, Scene, Sprite, SpriteMaterial, Vector2, Vector3 } from "three/src/Three.Core.js";
 import { Earth } from "./earth";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { EffectComposer, RenderPass, UnrealBloomPass } from "three/examples/jsm/Addons.js";
 import { WebGLRenderer } from "three";
+import { RenderPass, UnrealBloomPass, EffectComposer } from "three/examples/jsm/Addons.js";
+import { Starfield } from "./starfield";
 import { Sun } from "./sun";
+import { loadAndMergeSatelliteData } from "../assets/data/data-loader";
 
 export class SceneManager {
   public static scene: Scene;
   public static camera: PerspectiveCamera;
   private static starfield: Starfield;
-  private static earth : Earth;
-  private static composer: EffectComposer;
+  private static earth: Earth;
   private static sun: Sun;
   private static sunLight: DirectionalLight;
+  public static satelliteMarkers: Map<string, Mesh> = new Map();
+  private static satelliteIntervals: Map<string, NodeJS.Timeout> = new Map(); // Para almacenar los intervalos
+  public static composer: EffectComposer;
 
   public static init(): void {
     SceneManager.createScene();
@@ -23,15 +26,65 @@ export class SceneManager {
     SceneManager.earth = new Earth(SceneManager.scene, SceneManager.camera);
     SceneManager.sun = new Sun(SceneManager.scene, SceneManager.camera);
     SceneManager.createSunLight();
+
+    // Llamada para cargar y añadir satélites
+    SceneManager.loadSatellitesFromFile();
   }
 
+  private static async loadSatellitesFromFile(): Promise<void> {
+    const satellitesData = await loadAndMergeSatelliteData();
+
+    // Cargar los primeros 1000 satélites
+     const first1000Satellites = satellitesData.slice(0, 50);
+
+    // Crear los satélites a partir de los datos
+  first1000Satellites.forEach((sat) => {
+    const satname = sat.info?.satname || 'Unknown';
+    SceneManager.addSatellite(sat.id, sat.tle_line_1, sat.tle_line_2, satname);
+  });
+  }
+
+  // Método para agregar un satélite
+  private static addSatellite(id: string, tleLine1: string, tleLine2: string, name: string): void {
+    const satrec = satellite.twoline2satrec(tleLine1, tleLine2);
+
+    // Obtener la posición inicial
+    const now = new Date();
+    const posVel = satellite.propagate(satrec, now);
+    if (!posVel || !posVel.position) return;
+
+    const gmst = satellite.gstime(now);
+    const geo = satellite.eciToGeodetic(posVel.position, gmst);
+    const lat = satellite.degreesLat(geo.latitude);
+    const lon = satellite.degreesLong(geo.longitude);
+
+    // Crear un marcador para el satélite y agregarlo a la escena
+    const marker = SceneManager.earth.addMovingMarker(lat, lon, 0x00ffff);
+    SceneManager.satelliteMarkers.set(id, marker);
+
+    // Actualización periódica de la posición del satélite
+    const intervalId = setInterval(() => {
+      const newPos = satellite.propagate(satrec, new Date());
+      if (!newPos || !newPos.position) return;
+
+      const geoPos = satellite.eciToGeodetic(newPos.position, gmst);
+      const newLat = satellite.degreesLat(geoPos.latitude);
+      const newLon = satellite.degreesLong(geoPos.longitude);
+
+      const [x, y, z] = SceneManager.earth.calcPosFromLatLonRad(newLat, newLon, 33);
+      marker.position.set(x, y, z);
+    }, 1000);
+
+    // Guardar el intervalId para poder limpiarlo si es necesario
+    SceneManager.satelliteIntervals.set(id, intervalId);
+  }
 
   private static createScene(): void {
     SceneManager.scene = new Scene();
     SceneManager.scene.background = new Color(0x000000);
   }
 
-  private static createCamera():void {
+  private static createCamera(): void {
     SceneManager.camera = new PerspectiveCamera(34, window.innerWidth / window.innerHeight, 1, 2000);
     SceneManager.camera.position.set(200, 5, 10);
     SceneManager.camera.lookAt(0, 0, 0);
@@ -74,7 +127,55 @@ export class SceneManager {
     SceneManager.composer.addPass(bloomPass);
   }
 
+public static createTextSprite(
+  message: string,
+  parameters: {
+    fontface?: string;
+    fontsize?: number;
+    borderThickness?: number;
+    borderColor?: { r: number; g: number; b: number; a: number };
+    backgroundColor?: { r: number; g: number; b: number; a: number };
+  } = {}
+): Sprite {
+  const fontface = parameters.fontface || 'Arial';
+  const fontsize = parameters.fontsize || 24;
+  const borderThickness = parameters.borderThickness || 4;
+  const borderColor = parameters.borderColor || { r: 0, g: 0, b: 0, a: 1.0 };
+  const backgroundColor = parameters.backgroundColor || { r: 255, g: 255, b: 255, a: 1.0 };
+
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d')!;
+  context.font = `${fontsize}px ${fontface}`;
+
+  // Calcular tamaño del texto
+  const metrics = context.measureText(message);
+  const textWidth = metrics.width;
+
+  // Ajustar tamaño del canvas
+  canvas.width = textWidth + borderThickness * 2;
+  canvas.height = fontsize * 1.4 + borderThickness * 2;
+
+  // Redibujar con dimensiones ajustadas
+  context.font = `${fontsize}px ${fontface}`;
+  context.fillStyle = `rgba(${backgroundColor.r},${backgroundColor.g},${backgroundColor.b},${backgroundColor.a})`;
+  context.strokeStyle = `rgba(${borderColor.r},${borderColor.g},${borderColor.b},${borderColor.a})`;
+  context.lineWidth = borderThickness;
+  context.strokeRect(0, 0, canvas.width, canvas.height);
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = 'rgba(0, 0, 0, 1.0)';
+  context.fillText(message, borderThickness, fontsize + borderThickness);
+
+  const texture = new CanvasTexture(canvas);
+  texture.minFilter = LinearFilter;
+  const spriteMaterial = new SpriteMaterial({ map: texture, transparent: true });
+  const sprite = new Sprite(spriteMaterial);
+  sprite.scale.set(10, 5, 1); // Ajusta el tamaño según sea necesario
+
+  return sprite;
+}
+
+
   public static update(): void {
     SceneManager.earth?.update();
   }
-  }
+}
