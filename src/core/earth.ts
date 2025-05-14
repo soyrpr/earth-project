@@ -7,7 +7,7 @@ export class Earth {
   private earthMesh!: Mesh;
   private readonly radius = 30;
 
-  constructor(private readonly scene: Scene, private readonly camera: Camera) {
+  constructor(public readonly scene: Scene, private readonly camera: Camera) {
     this.createEarth();
   }
 

@@ -5,20 +5,18 @@ import { SceneManager } from "./scene.manager";
 
 export class SatelliteManager {
   private markers: Map<string, Mesh> = new Map();
-  private updateInterval: any; // Intervalo único para todas las actualizaciones
+  private updateInterval: any;
 
   constructor(private readonly earth: Earth) {}
 
 public addSatellite(id: string, tleLine1: string, tleLine2: string, name: string): void {
-  // Check if the satellite already exists
   if (this.markers.has(id)) {
     console.log(`El satélite con ID ${id} ya ha sido agregado.`);
-    return; // If the satellite already exists, skip adding it
+    return;
   }
 
   const satrec = satellite.twoline2satrec(tleLine1, tleLine2);
 
-  // Obtener la posición inicial
   const now = new Date();
   const positionAndVelocity  = satellite.propagate(satrec, now);
   if (!positionAndVelocity  || !positionAndVelocity .position) {
@@ -31,21 +29,16 @@ public addSatellite(id: string, tleLine1: string, tleLine2: string, name: string
   const lat = satellite.degreesLat(geo.latitude);
   const lon = satellite.degreesLong(geo.longitude);
 
-  // Crear el marcador del satélite
   const marker = this.earth.addMovingMarker(lat, lon, 0x00ffff);
-  this.markers.set(id, marker); // Store the marker with the satellite ID
+  this.markers.set(id, marker);
 
-  // Crear y añadir el sprite de texto
-  const nameSprite = SceneManager.createTextSprite(name);
-  console.log(`Texto del sprite: ${name}`); // Verifica el nombre del sprite
-  nameSprite.position.set(0, 5, 0);
-  nameSprite.renderOrder = 1; // Asegura que el sprite se renderice encima de otros objetos
-  marker.add(nameSprite);
+  marker.userData = {
+    tleLine1,
+    tleLine2,
+    name,
+  };
+  marker.name = name;
 
-  // Guardar las líneas TLE en el marcador como datos personalizados
-  marker.userData = { tleLine1, tleLine2 };
-
-  // Actualización de posición cada 1 segundo (solo se establece una vez)
   if (!this.updateInterval) {
     this.updateInterval = setInterval(this.updateSatellites.bind(this), 1000);
   }
@@ -65,7 +58,7 @@ public addSatellite(id: string, tleLine1: string, tleLine2: string, name: string
       const newLat = satellite.degreesLat(geoPos.latitude);
       const newLon = satellite.degreesLong(geoPos.longitude);
 
-      const earthRadiusKm = 6371; 
+      const earthRadiusKm = 6371;
       const earthSceneRadius = this.earth.getRadius();
 
       const altitudeKm = geoPos.height;

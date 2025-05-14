@@ -1,5 +1,5 @@
 import * as satellite from "satellite.js";
-import { CanvasTexture, Color, DirectionalLight, HemisphereLight, LinearFilter, Mesh, PerspectiveCamera, Scene, Sprite, SpriteMaterial, Vector2, Vector3 } from "three/src/Three.Core.js";
+import { CanvasTexture, Color, DirectionalLight, HemisphereLight, LinearFilter, Mesh, Object3D, PerspectiveCamera, Raycaster, Scene, Sprite, SpriteMaterial, Vector2, Vector3 } from "three/src/Three.Core.js";
 import { Earth } from "./earth";
 import { RenderPass, UnrealBloomPass, EffectComposer } from "three/examples/jsm/Addons.js";
 import { Starfield } from "./starfield";
@@ -19,22 +19,68 @@ export class SceneManager {
   private static satelliteIntervals: Map<string, NodeJS.Timeout> = new Map(); // Para almacenar los intervalos
   public static composer: EffectComposer;
   private static satelliteManager: SatelliteManager; // SatelliteManager instance
+  private static raycaster = new Raycaster();
+  private static pointer = new Vector2();
 
   public static init(): void {
     SceneManager.createScene();
     SceneManager.createCamera();
     SceneManager.createLights();
+
     SceneManager.starfield = new Starfield(SceneManager.scene);
     SceneManager.earth = new Earth(SceneManager.scene, SceneManager.camera);
     SceneManager.sun = new Sun(SceneManager.scene, SceneManager.camera);
     SceneManager.createSunLight();
     SceneManager.earth.addMovingMarker(37, -4, 0x0000ff)
-    // Initialize SatelliteManager
-    SceneManager.satelliteManager = new SatelliteManager(SceneManager.earth);
 
-    // Llamada para cargar y añadir satélites
+    SceneManager.satelliteManager = new SatelliteManager(SceneManager.earth);
     SceneManager.loadSatellitesFromFile();
+
+    window.addEventListener('click', SceneManager.onDocumentClick);
   }
+
+  private static onDocumentClick(event: MouseEvent) {
+    SceneManager.pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+    SceneManager.pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    SceneManager.raycaster.setFromCamera(SceneManager.pointer, SceneManager.camera);
+
+    const intersects = SceneManager.raycaster.intersectObjects(SceneManager.scene.children, true);
+
+    for (const intersect of intersects) {
+      const object = intersect.object;
+
+      // Comprueba si el objeto pertenece a un dron
+      let current = object;
+      while (current.parent) {
+        if (current.userData['tleLine1'] && current.userData['tleLine2']) {
+          SceneManager.showDroneInfo(current);
+          return;
+        }
+        current = current.parent;
+      }
+    }
+    SceneManager.hideDroneInfo();
+  }
+
+private static showDroneInfo(object: Object3D) {
+  const box = document.getElementById("drone-info-box")!;
+  const nameEl = document.getElementById("drone-name")!;
+  const tle1El = document.getElementById("tle-line1")!;
+  const tle2El = document.getElementById("tle-line2")!;
+
+  nameEl.textContent = object.userData["name"] || object.name || "Satélite desconocido";
+  tle1El.textContent = object.userData["tleLine1"] || "No disponible";
+  tle2El.textContent = object.userData['tleLine2'] || "No disponible";
+
+  box.style.display = "block";
+}
+
+private static hideDroneInfo() {
+  const box = document.getElementById("drone-info-box")!;
+  box.style.display = "none";
+}
+
 
   private static async loadSatellitesFromFile(): Promise<void> {
     const satellitesData = await loadAndMergeSatelliteData();
@@ -48,7 +94,7 @@ export class SceneManager {
 
     starlinkSatellites.forEach((sat) => {
       const satname = sat.info?.satname || 'Unknown';
-      SceneManager.satelliteManager.addSatellite(sat.id, sat.tle_line_1, sat.tle_line_2, satname);
+      SceneManager.satelliteManager.addSatellite(sat.norad_cat_id, sat.tle_line_1, sat.tle_line_2, satname);
     });
   }
 
@@ -99,47 +145,6 @@ export class SceneManager {
     SceneManager.composer.addPass(renderScene);
     SceneManager.composer.addPass(bloomPass);
   }
-
-public static createTextSprite(
-  message: string,
-  parameters: {
-    fontface?: string;
-    fontsize?: number;
-    color?: { r: number; g: number; b: number; a: number }; // Color del texto
-  } = {}
-): Sprite {
-  const fontface = parameters.fontface || 'Arial';
-  const fontsize = parameters.fontsize || 11;  // Puedes cambiar el tamaño aquí
-  const color = parameters.color || { r: 0, g: 0, b: 0, a: 1.0 }; // Color del texto, por defecto negro
-
-  const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d')!;
-  context.font = `${fontsize}px ${fontface}`;
-
-  // Calcular tamaño del texto
-  const metrics = context.measureText(message);
-  const textWidth = metrics.width;
-
-  // Ajustar tamaño del canvas solo para el texto
-  canvas.width = textWidth;
-  canvas.height = fontsize * 1.4;
-
-  // Establecer color del texto
-  context.fillStyle = `rgba(${color.r},${color.g},${color.b},${color.a})`;
-  context.fillText(message, 0, fontsize);  // Dibujar solo el texto, sin fondo ni borde
-
-  const texture = new CanvasTexture(canvas);
-  texture.minFilter = LinearFilter;
-  const spriteMaterial = new SpriteMaterial({ map: texture, transparent: true });
-  const sprite = new Sprite(spriteMaterial);
-
-  // Ajustar el tamaño del sprite según sea necesario
-  sprite.scale.set(2, 1, 1);  // Ajusta el tamaño según lo que necesites
-
-  console.log(`Texto del sprite: ${message}`);
-
-  return sprite;
-}
 
   public static update(): void {
     SceneManager.earth?.update();

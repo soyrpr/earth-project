@@ -14,6 +14,7 @@ export interface SatelliteInfo {
 
 export interface SatelliteOrbitalParam {
   id: string;
+  norad_cat_id: string;
   period: string;
   inclination: string;
   apogee: string;
@@ -28,10 +29,11 @@ export interface SatelliteTLE {
   tle_line_1: string;
   tle_line_2: string;
   space_object: number;
+  norad_cat_id?: string; // opcional si no está directamente en el JSON
 }
 
 export interface MergedSatelliteData {
-  id: string;
+  norad_cat_id: string;
   tle_line_1: string;
   tle_line_2: string;
   info: SatelliteInfo | undefined;
@@ -52,20 +54,28 @@ export async function loadAndMergeSatelliteData(): Promise<MergedSatelliteData[]
   ]);
 
   const infoMap = new Map<string, SatelliteInfo>();
-  infoData.forEach((info) => {
-    infoMap.set(info.id, info);
+  infoData.forEach(info => {
+    infoMap.set(info.norad_cat_id, info);
   });
 
   const orbitalMap = new Map<string, SatelliteOrbitalParam>();
-  orbitalData.forEach((orbital) => {
-    orbitalMap.set(orbital.id, orbital);
+  orbitalData.forEach(orbital => {
+    orbitalMap.set(orbital.norad_cat_id, orbital);
   });
 
-  return tleData.map((tle) => ({
-    id: tle.id,
-    tle_line_1: tle.tle_line_1,
-    tle_line_2: tle.tle_line_2,
-    info: infoMap.get(tle.id),
-    orbital: orbitalMap.get(tle.id),
-  }));
+  function extractNoradId(tleLine: string): string {
+    // Ejemplo de línea TLE: "1 09934U 77029..."
+    return tleLine.trim().split(/\s+/)[1]; // "09934" → "9934"
+  }
+
+  return tleData.map((tle) => {
+    const noradId = extractNoradId(tle.tle_line_2);
+    return {
+      norad_cat_id: noradId,
+      tle_line_1: tle.tle_line_1,
+      tle_line_2: tle.tle_line_2,
+      info: infoMap.get(noradId),
+      orbital: orbitalMap.get(noradId),
+    };
+  });
 }
