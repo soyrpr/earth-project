@@ -36,46 +36,53 @@ export interface MergedSatelliteData {
   norad_cat_id: string;
   tle_line_1: string;
   tle_line_2: string;
-  info: SatelliteInfo | undefined;
-  orbital: SatelliteOrbitalParam | undefined;
+  info?: SatelliteInfo;
+  orbital?: SatelliteOrbitalParam;
 }
 
 export async function loadAndMergeSatelliteData(): Promise<MergedSatelliteData[]> {
-  const [infoResponse, orbitalResponse, tleResponse] = await Promise.all([
-    fetch('/assets/data/satellite_info.json'),
-    fetch('/assets/data/satellite_orbital_param.json'),
-    fetch('/assets/data/satellite_tle.json'),
-  ]);
+  try {
+    // Cargar todos los archivos en paralelo
+    const [infoResponse, orbitalResponse, tleResponse] = await Promise.all([
+      fetch('/assets/data/satellite_info.json'),
+      fetch('/assets/data/satellite_orbital_param.json'),
+      fetch('/assets/data/satellite_tle.json'),
+    ]);
 
-  const [infoData, orbitalData, tleData]: [SatelliteInfo[], SatelliteOrbitalParam[], SatelliteTLE[]] = await Promise.all([
-    infoResponse.json(),
-    orbitalResponse.json(),
-    tleResponse.json(),
-  ]);
+    // Parsear las respuestas en formato JSON
+    const [infoData, orbitalData, tleData]: [SatelliteInfo[], SatelliteOrbitalParam[], SatelliteTLE[]] = await Promise.all([
+      infoResponse.json(),
+      orbitalResponse.json(),
+      tleResponse.json(),
+    ]);
 
-  const infoMap = new Map<string, SatelliteInfo>();
-  infoData.forEach(info => {
-    infoMap.set(info.norad_cat_id, info);
-  });
+    // Crear un mapa de los datos de información y orbital por norad_cat_id
+    const infoMap = new Map<string, SatelliteInfo>();
+    infoData.forEach(info => infoMap.set(info.norad_cat_id, info));
 
-  const orbitalMap = new Map<string, SatelliteOrbitalParam>();
-  orbitalData.forEach(orbital => {
-    orbitalMap.set(orbital.norad_cat_id, orbital);
-  });
+    const orbitalMap = new Map<string, SatelliteOrbitalParam>();
+    orbitalData.forEach(orbital => orbitalMap.set(orbital.norad_cat_id, orbital));
 
-  function extractNoradId(tleLine: string): string {
-    // Ejemplo de línea TLE: "1 09934U 77029..."
-    return tleLine.trim().split(/\s+/)[1]; // "09934" → "9934"
+    // Función para extraer el norad_cat_id desde el TLE (si no se encuentra, devuelve un valor por defecto)
+    function extractNoradId(tleLine1: string): string {
+      return tleLine1.substring(2, 7).trim();
+    }
+
+    // Crear los datos fusionados
+    const mergedData: MergedSatelliteData[] = tleData.map((tle) => {
+      const noradId = extractNoradId(tle.tle_line_1);
+      return {
+        norad_cat_id: noradId,
+        tle_line_1: tle.tle_line_1,
+        tle_line_2: tle.tle_line_2,
+        info: infoMap.get(noradId), // Buscar en el mapa de información
+        orbital: orbitalMap.get(noradId), // Buscar en el mapa orbital
+      };
+    });
+
+    return mergedData;
+  } catch (error) {
+    console.error('Error al cargar o fusionar los datos de los satélites:', error);
+    return [];
   }
-
-  return tleData.map((tle) => {
-    const noradId = extractNoradId(tle.tle_line_2);
-    return {
-      norad_cat_id: noradId,
-      tle_line_1: tle.tle_line_1,
-      tle_line_2: tle.tle_line_2,
-      info: infoMap.get(noradId),
-      orbital: orbitalMap.get(noradId),
-    };
-  });
 }

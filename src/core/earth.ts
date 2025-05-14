@@ -55,6 +55,8 @@ export class Earth {
     marker.position.set(x, y, z);
     this.scene.add(marker);
 
+    console.log(`Adding marker at lat: ${lat}, lon: ${lon}`);
+
     return marker;
   }
 

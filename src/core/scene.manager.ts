@@ -1,5 +1,5 @@
 import * as satellite from "satellite.js";
-import { CanvasTexture, Color, DirectionalLight, HemisphereLight, LinearFilter, Mesh, Object3D, PerspectiveCamera, Raycaster, Scene, Sprite, SpriteMaterial, Vector2, Vector3 } from "three/src/Three.Core.js";
+import { CanvasTexture, Color, DirectionalLight, HemisphereLight, Line, LinearFilter, Mesh, MeshBasicMaterial, Object3D, PerspectiveCamera, Raycaster, Scene, Sprite, SpriteMaterial, Vector2, Vector3 } from "three/src/Three.Core.js";
 import { Earth } from "./earth";
 import { RenderPass, UnrealBloomPass, EffectComposer } from "three/examples/jsm/Addons.js";
 import { Starfield } from "./starfield";
@@ -21,6 +21,8 @@ export class SceneManager {
   private static satelliteManager: SatelliteManager; // SatelliteManager instance
   private static raycaster = new Raycaster();
   private static pointer = new Vector2();
+  private static selectedSatellite: Object3D | null = null;
+  private static selectedOrbitLine: Line | null = null;
 
   public static init(): void {
     SceneManager.createScene();
@@ -50,7 +52,6 @@ export class SceneManager {
     for (const intersect of intersects) {
       const object = intersect.object;
 
-      // Comprueba si el objeto pertenece a un dron
       let current = object;
       while (current.parent) {
         if (current.userData['tleLine1'] && current.userData['tleLine2']) {
@@ -74,6 +75,31 @@ private static showDroneInfo(object: Object3D) {
   tle2El.textContent = object.userData['tleLine2'] || "No disponible";
 
   box.style.display = "block";
+
+  if (SceneManager.selectedSatellite && SceneManager.selectedSatellite !== object) {
+    const prev = SceneManager.selectedSatellite as Mesh;
+    if (prev.material) {
+      (prev.material as MeshBasicMaterial).color.set(0x00ffff);
+    }
+    if(SceneManager.selectedOrbitLine) {
+      SceneManager.scene.remove(SceneManager.selectedOrbitLine);
+      SceneManager.selectedOrbitLine = null;
+    }
+  }
+
+  SceneManager.selectedSatellite = object;
+
+  if((object as Mesh).material) {
+    ((object as Mesh).material as MeshBasicMaterial).color.set(0xff0000);
+  }
+
+  const orbitLine = SceneManager.satelliteManager.drawOrbit(
+    object.userData["tleLine1"],
+    object.userData["tleLine2"]
+  );
+
+  SceneManager.selectedOrbitLine = orbitLine;
+  SceneManager.scene.add(orbitLine);
 }
 
 private static hideDroneInfo() {
