@@ -1,7 +1,6 @@
 import { Mesh, Line, BufferGeometry, Float32BufferAttribute, LineBasicMaterial, Vector3 } from 'three';
 import * as satellite from 'satellite.js';
 
-
 import { loadAndMergeSatelliteData } from "../assets/data/data-loader";
 import { Earth } from './earth';
 
@@ -10,6 +9,7 @@ interface SatelliteData {
   tleLine2: string;
   name: string;
   satrec: satellite.SatRec;
+  orbitalParams?: any; // Nuevo parámetro opcional
 }
 
 export class SatelliteManager {
@@ -20,7 +20,13 @@ export class SatelliteManager {
 
   constructor(private readonly earth: Earth) {}
 
-  public addSatellite(id: string, tleLine1: string, tleLine2: string, name: string): void {
+  public addSatellite(
+    id: string,
+    tleLine1: string,
+    tleLine2: string,
+    name: string,
+    orbitalParams?: any // Nuevo parámetro
+  ): void {
     if (this.markers.has(id)) return;
 
     const satrec = satellite.twoline2satrec(tleLine1, tleLine2);
@@ -30,11 +36,12 @@ export class SatelliteManager {
     if (!posVel?.position) return;
 
     const marker = this.earth.addMarkerFromEci(posVel.position);
-    marker.userData = { tleLine1, tleLine2, name, id };
+    // Guardamos orbitalParams en userData para mostrar info después
+    marker.userData = { tleLine1, tleLine2, name, id, orbitalParams };
     marker.name = name;
 
     this.markers.set(id, marker);
-    this.satData.set(id, { tleLine1, tleLine2, name, satrec });
+    this.satData.set(id, { tleLine1, tleLine2, name, satrec, orbitalParams });
 
     if (!this.updateInterval) {
       this.updateInterval = setInterval(() => this.updateSatellites(), 1000);
@@ -56,11 +63,13 @@ export class SatelliteManager {
 
     filteredData.forEach((sat) => {
       const satname = sat.info?.satname ?? 'Unknown';
+      // Pasamos el objeto orbital completo como orbitalParams
       this.addSatellite(
-        sat.norad_cat_id.toString(), // Asegúrate de que el ID es string
+        sat.norad_cat_id,
         sat.tle_line_1,
         sat.tle_line_2,
-        satname
+        satname,
+        sat.orbital // Aquí se pasa la info orbital completa
       );
     });
   }
@@ -86,33 +95,33 @@ export class SatelliteManager {
     }
   }
 
-public updateSatellites(): void {
-const now = new Date();
-  const gmst = satellite.gstime(now);  // Greenwich Mean Sidereal Time
+  public updateSatellites(): void {
+    const now = new Date();
+    const gmst = satellite.gstime(now);  // Greenwich Mean Sidereal Time
 
-  const earthRadiusKm = 6371;
-  const earthSceneRadius = this.earth.getRadius();
-  const scaleFactor = earthSceneRadius / earthRadiusKm;
+    const earthRadiusKm = 6371;
+    const earthSceneRadius = this.earth.getRadius();
+    const scaleFactor = earthSceneRadius / earthRadiusKm;
 
-  for (const [id, marker] of this.markers.entries()) {
-    const data = this.satData.get(id);
-    if (!data) continue;
+    for (const [id, marker] of this.markers.entries()) {
+      const data = this.satData.get(id);
+      if (!data) continue;
 
-    const posVel = satellite.propagate(data.satrec, now);
-    if (!posVel?.position) continue;
+      const posVel = satellite.propagate(data.satrec, now);
+      if (!posVel?.position) continue;
 
-    // Convertir ECI a ECEF
-    const ecefPos = satellite.eciToEcf(posVel.position, gmst);
+      // Convertir ECI a ECEF
+      const ecefPos = satellite.eciToEcf(posVel.position, gmst);
 
-    // Actualizar la posición del marcador en el sistema de tu escena
-// Usar coordenadas ECI directamente
-marker.position.set(
-  posVel.position.x * scaleFactor,
-  posVel.position.y * scaleFactor,
-  posVel.position.z * scaleFactor
-);
+      // Actualizar la posición del marcador en el sistema de tu escena
+      // Usar coordenadas ECI directamente
+      marker.position.set(
+        posVel.position.x * scaleFactor,
+        posVel.position.y * scaleFactor,
+        posVel.position.z * scaleFactor
+      );
+    }
   }
-}
 
   private updateOrbitLine(id: string, satPosition: { x: number; y: number; z: number }, scaleFactor: number): void {
     const orbitLine = this.orbits.get(id);
@@ -199,6 +208,4 @@ marker.position.set(
     this.orbits.clear();
     this.satData.clear();
   }
-
-
 }
