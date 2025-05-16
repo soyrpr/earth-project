@@ -1,5 +1,5 @@
 import * as satellite from "satellite.js";
-import { CanvasTexture, Color, DirectionalLight, HemisphereLight, LinearFilter, Mesh, Object3D, PerspectiveCamera, Raycaster, Scene, Sprite, SpriteMaterial, Vector2, Vector3 } from "three/src/Three.Core.js";
+import { CanvasTexture, Color, DirectionalLight, HemisphereLight, Line, LinearFilter, Mesh, MeshBasicMaterial, Object3D, PerspectiveCamera, Raycaster, Scene, Sprite, SpriteMaterial, Vector2, Vector3 } from "three/src/Three.Core.js";
 import { Earth } from "./earth";
 import { RenderPass, UnrealBloomPass, EffectComposer } from "three/examples/jsm/Addons.js";
 import { Starfield } from "./starfield";
@@ -18,9 +18,11 @@ export class SceneManager {
   public static satelliteMarkers: Map<string, Mesh> = new Map();
   private static satelliteIntervals: Map<string, NodeJS.Timeout> = new Map(); // Para almacenar los intervalos
   public static composer: EffectComposer;
-  private static satelliteManager: SatelliteManager; // SatelliteManager instance
+  private static satelliteManager: SatelliteManager;
   private static raycaster = new Raycaster();
   private static pointer = new Vector2();
+  private static selectedSatellite: Object3D | null = null;
+  private static selectedOrbitLine: Line | null = null;
 
   public static init(): void {
     SceneManager.createScene();
@@ -31,7 +33,6 @@ export class SceneManager {
     SceneManager.earth = new Earth(SceneManager.scene, SceneManager.camera);
     SceneManager.sun = new Sun(SceneManager.scene, SceneManager.camera);
     SceneManager.createSunLight();
-    SceneManager.earth.addMovingMarker(37, -4, 0x0000ff)
 
     SceneManager.satelliteManager = new SatelliteManager(SceneManager.earth);
     SceneManager.loadSatellitesFromFile();
@@ -50,22 +51,21 @@ export class SceneManager {
     for (const intersect of intersects) {
       const object = intersect.object;
 
-      // Comprueba si el objeto pertenece a un dron
       let current = object;
       while (current.parent) {
         if (current.userData['tleLine1'] && current.userData['tleLine2']) {
-          SceneManager.showDroneInfo(current);
+          SceneManager.showSatelliteInfo(current);
           return;
         }
         current = current.parent;
       }
     }
-    SceneManager.hideDroneInfo();
+    SceneManager.hideSatelliteInfo();
   }
 
-private static showDroneInfo(object: Object3D) {
-  const box = document.getElementById("drone-info-box")!;
-  const nameEl = document.getElementById("drone-name")!;
+private static showSatelliteInfo(object: Object3D) {
+  const box = document.getElementById("satellite-info-box")!;
+  const nameEl = document.getElementById("satellite-name")!;
   const tle1El = document.getElementById("tle-line1")!;
   const tle2El = document.getElementById("tle-line2")!;
 
@@ -74,10 +74,35 @@ private static showDroneInfo(object: Object3D) {
   tle2El.textContent = object.userData['tleLine2'] || "No disponible";
 
   box.style.display = "block";
+
+  if (SceneManager.selectedSatellite && SceneManager.selectedSatellite !== object) {
+    const prev = SceneManager.selectedSatellite as Mesh;
+    if (prev.material) {
+      (prev.material as MeshBasicMaterial).color.set(0x00ffff);
+    }
+    if(SceneManager.selectedOrbitLine) {
+      SceneManager.scene.remove(SceneManager.selectedOrbitLine);
+      SceneManager.selectedOrbitLine = null;
+    }
+  }
+
+  SceneManager.selectedSatellite = object;
+
+  if((object as Mesh).material) {
+    ((object as Mesh).material as MeshBasicMaterial).color.set(0xff0000);
+  }
+
+  const orbitLine = SceneManager.satelliteManager.drawOrbit(
+    object.userData["tleLine1"],
+    object.userData["tleLine2"]
+  );
+
+  SceneManager.selectedOrbitLine = orbitLine;
+  SceneManager.scene.add(orbitLine);
 }
 
-private static hideDroneInfo() {
-  const box = document.getElementById("drone-info-box")!;
+private static hideSatelliteInfo() {
+  const box = document.getElementById("satellite-info-box")!;
   box.style.display = "none";
 }
 
@@ -86,13 +111,13 @@ private static hideDroneInfo() {
     const satellitesData = await loadAndMergeSatelliteData();
     console.log('Datos de satélites cargados:', satellitesData);
 
-    const starlinkSatellites = satellitesData.filter(
-      (sat) => sat.info?.satname?.toLowerCase().includes('starlink')
-    );
+    // const starlinkSatellites = satellitesData.filter(
+    //   (sat) => sat.info?.satname?.toLowerCase().includes('starlink')
+    // );
 
-    console.log(`Total de satélites Starlink encontrados: ${starlinkSatellites.length}`);
+    // console.log(`Total de satélites Starlink encontrados: ${starlinkSatellites.length}`);
 
-    starlinkSatellites.forEach((sat) => {
+    satellitesData.forEach((sat) => {
       const satname = sat.info?.satname || 'Unknown';
       SceneManager.satelliteManager.addSatellite(sat.norad_cat_id, sat.tle_line_1, sat.tle_line_2, satname);
     });

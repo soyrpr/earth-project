@@ -44,68 +44,60 @@ export class Earth {
   }
 
 
-  // Método para agregar un marcador que se moverá con el satélite
-  public addMovingMarker(lat: number, lon: number, color: number): Mesh {
-    const [x, y, z] = this.calcPosFromLatLonRad(lat, lon, this.radius + 3); // Marcador alejado de la superficie de la Tierra
+  public addMarkerFromEci(eciPos: satellite.EciVec3<number>): Mesh {
+    const scaleFactor = this.radius / 6371; // convierte km a unidades de escena
+    const x = eciPos.x * scaleFactor;
+    const y = eciPos.y * scaleFactor;
+    const z = eciPos.z * scaleFactor;
 
-    const geometry = new SphereGeometry(0.2, 1, 1); // Tamaño del satélite
-    const material = new MeshBasicMaterial({ color });
-
+    const geometry = new SphereGeometry(0.2, 4, 4);
+    const material = new MeshBasicMaterial({ color: 0xffffff });
     const marker = new Mesh(geometry, material);
     marker.position.set(x, y, z);
-    this.scene.add(marker);
 
+    this.scene.add(marker);
     return marker;
   }
 
-  // Método para actualizar la posición de los satélites
-  public updateSatelliteMarker(marker: Mesh, lat: number, lon: number): void {
-    const [x, y, z] = this.calcPosFromLatLonRad(lat, lon, this.radius + 3); // Actualizamos la posición
-    marker.position.set(x, y, z);
+  public updateMarkerFromEci(marker: Mesh, eciPos: satellite.EciVec3<number>): void {
+    const scaleFactor = this.radius / 6371;
+    marker.position.set(
+      eciPos.x * scaleFactor,
+      eciPos.y * scaleFactor,
+      eciPos.z * scaleFactor
+    );
   }
 
-  // Mostrar satélites desde los TLEs
   public showSatellites(tleData: string[], intervalTime: number = 1000): void {
     tleData.forEach(tle => {
       const satrec = satellite.twoline2satrec(tle[1], tle[2]);
-      const positionAndVelocity = satellite.propagate(satrec, new Date());
+      const now = new Date();
+      const positionAndVelocity = satellite.propagate(satrec, now);
 
       if (positionAndVelocity && positionAndVelocity.position) {
         const positionEci = positionAndVelocity.position;
-        const gmst = satellite.gstime(new Date());
-        const positionGd = satellite.eciToGeodetic(positionEci, gmst);
 
-        const lat = positionGd.latitude * (180 / Math.PI);
-        const lon = positionGd.longitude * (180 / Math.PI);
+        // Crear marcador directamente desde ECI
+        const marker = this.addMarkerFromEci(positionEci);
 
-        // Crear marcador para el satélite
-        const marker = this.addMovingMarker(lat, lon, 0x00ffff);
-
-        // Actualización periódica de la posición del satélite
+        // Actualización periódica de la posición en ECI
         setInterval(() => {
-          const updatedPos = satellite.propagate(satrec, new Date());
+          const updatedTime = new Date();
+          const updatedPos = satellite.propagate(satrec, updatedTime);
+
           if (updatedPos && updatedPos.position) {
-            const updatedEci = updatedPos.position;
-            const updatedGmst = satellite.gstime(new Date());
-            const updatedPositionGd = satellite.eciToGeodetic(updatedEci, updatedGmst);
-
-            const updatedLat = updatedPositionGd.latitude * (180 / Math.PI);
-            const updatedLon = updatedPositionGd.longitude * (180 / Math.PI);
-
-            // Actualizar la posición del marcador
-            this.updateSatelliteMarker(marker, updatedLat, updatedLon);
+            this.updateMarkerFromEci(marker, updatedPos.position);
           }
         }, intervalTime);
       }
     });
   }
 
-    getRadius() {
+  getRadius() {
     return this.radius;
   }
 
   public update(): void {
-    // Si deseas rotar la Tierra, por ejemplo:
     // this.earthMesh.rotation.y += 0.0001;
   }
 }
