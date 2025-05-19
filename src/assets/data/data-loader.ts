@@ -61,7 +61,17 @@ export async function loadAndMergeSatelliteData(): Promise<MergedSatelliteData[]
     infoData.forEach(info => infoMap.set(info.norad_cat_id, info));
 
     const orbitalMap = new Map<string, SatelliteOrbitalParam>();
-    orbitalData.forEach(orbital => orbitalMap.set(orbital.norad_cat_id, orbital));
+orbitalData.forEach(orbital => {
+  const noradId = orbital.id; // Asumimos que 'id' es realmente 'norad_cat_id'
+  if (noradId) {
+    orbitalMap.set(noradId, {
+      ...orbital,
+      norad_cat_id: noradId // Añadimos el campo esperado
+    });
+  } else {
+    console.warn('norad_cat_id no definido para:', orbital);
+  }
+});
 
     // Función para extraer el norad_cat_id desde el TLE (si no se encuentra, devuelve un valor por defecto)
     function extractNoradId(tleLine1: string): string {

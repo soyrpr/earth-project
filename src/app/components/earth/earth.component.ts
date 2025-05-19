@@ -6,7 +6,7 @@ import { Earth } from '../../../core/earth';
 @Component({
   selector: 'app-earth',
   templateUrl: './earth.component.html',
-  styleUrls: ['./earth.component.css']  
+  styleUrls: ['./earth.component.css']
 })
 export class EarthComponent {
   ngAfterViewInit(): void {
@@ -17,6 +17,7 @@ export class EarthComponent {
 
     const earth = SceneManager.earth!;
     const loader = new TextureLoader();
+    earth.addMalagaMarker(earth);
 
     Promise.all([
       loader.loadAsync('assets/textures/earthmap1k.jpg'),

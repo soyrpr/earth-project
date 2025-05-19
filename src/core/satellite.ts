@@ -116,9 +116,9 @@ export class SatelliteManager {
       // Actualizar la posición del marcador en el sistema de tu escena
       // Usar coordenadas ECI directamente
       marker.position.set(
-        posVel.position.x * scaleFactor,
-        posVel.position.y * scaleFactor,
-        posVel.position.z * scaleFactor
+        ecefPos.x * scaleFactor,
+        ecefPos.z * scaleFactor,  // ← esto será el eje Y en Three.js
+        ecefPos.y * scaleFactor   // ← esto será el eje Z en Three.js
       );
     }
   }

@@ -22,6 +22,8 @@ export class SceneManager {
   private static selectedSatellite: Object3D | null = null;
   private static selectedOrbitLine: Line | null = null;
 
+  private static initialized = false;
+
   public static get scene(): Scene {
     if (!this._scene) throw new Error("SceneManager.scene no está inicializado");
     return this._scene;
@@ -32,20 +34,27 @@ export class SceneManager {
     return this._camera;
   }
 
-  public static async init(): Promise<void> {
-    this.createScene();
-    this.createCamera();
-    this.createLights();
-
-    this.starfield = new Starfield(this.scene);
-    this.earth = new Earth(this.camera, this.scene);
-    this.satelliteManager = new SatelliteManager(this.earth);
-
-    // Carga solo satélites Starlink; puedes pasar `false` para todos
-    await this.satelliteManager.loadSatellites(true);
-
-    window.addEventListener('click', this.onDocumentClick.bind(this));
+public static async init(): Promise<void> {
+  if (this.initialized) {
+    console.warn("SceneManager ya fue inicializado, ignorando llamada.");
+    return;
   }
+  this.initialized = true;
+
+  console.log("SceneManager.init() llamado");
+  this.createScene();
+  this.createCamera();
+  this.createLights();
+
+  this.starfield = new Starfield(this.scene);
+  this.earth = new Earth(this.camera, this.scene);
+  this.satelliteManager = new SatelliteManager(this.earth);
+
+  await this.satelliteManager.loadSatellites(true);
+
+  window.addEventListener('click', this.onDocumentClick.bind(this));
+}
+
 
   private static onDocumentClick(event: MouseEvent): void {
     this.pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
