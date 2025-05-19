@@ -1,6 +1,9 @@
 import {
   Scene, PerspectiveCamera, Mesh, Raycaster, Vector2,
-  Object3D, Line, MeshBasicMaterial, Color, HemisphereLight, Vector3, WebGLRenderer
+  Object3D, Line, MeshBasicMaterial, Color, HemisphereLight, Vector3, WebGLRenderer,
+  Frustum,
+  Matrix4,
+  Camera
 } from "three";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { Earth } from "./earth";
@@ -23,6 +26,9 @@ export class SceneManager {
   private static selectedOrbitLine: Line | null = null;
 
   private static initialized = false;
+
+  private static frustum = new Frustum();
+  private static cameraViewProjectionMatrix = new Matrix4();
 
   public static get scene(): Scene {
     if (!this._scene) throw new Error("SceneManager.scene no está inicializado");
@@ -169,5 +175,11 @@ public static async init(): Promise<void> {
 
   public static update(): void {
     this.satelliteManager?.updateSatellites();
+  }
+
+  public static isPOV(position: Vector3, camera: PerspectiveCamera): boolean {
+    this.cameraViewProjectionMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    this.frustum.setFromProjectionMatrix(this.cameraViewProjectionMatrix);
+    return this.frustum.containsPoint(position);
   }
 }

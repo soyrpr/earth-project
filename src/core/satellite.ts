@@ -3,6 +3,7 @@ import * as satellite from 'satellite.js';
 
 import { loadAndMergeSatelliteData } from "../assets/data/data-loader";
 import { Earth } from './earth';
+import { SceneManager } from './scene.manager';
 
 interface SatelliteData {
   tleLine1: string;
@@ -18,22 +19,31 @@ export class SatelliteManager {
   private updateInterval: ReturnType<typeof setInterval> | null = null;
   private orbits: Map<string, Line> = new Map();
 
+  private loadedSatelliteIds: Set<string> = new Set();
+
   constructor(private readonly earth: Earth) {}
 
-  public addSatellite(
-    id: string,
-    tleLine1: string,
-    tleLine2: string,
-    name: string,
-    orbitalParams?: any // Nuevo parámetro
-  ): void {
-    if (this.markers.has(id)) return;
+  public addSatellite(id: string, tleLine1: string, tleLine2: string, name: string, orbitalParams?: any ): void {
+    if (this.markers.has(id) || this.loadedSatelliteIds.has(id)) return;
+    this.loadedSatelliteIds.add(id);
 
     const satrec = satellite.twoline2satrec(tleLine1, tleLine2);
     const now = new Date();
     const posVel = satellite.propagate(satrec, now);
 
     if (!posVel?.position) return;
+
+    const earthRadiusKm = 6371;
+    const earthSceneRadius = this.earth.getRadius();
+    const scaleFactor = earthSceneRadius / earthRadiusKm;
+
+    const posScaled = new Vector3(
+      posVel.position.x * scaleFactor,
+      posVel.position.z * scaleFactor,
+      posVel.position.y * scaleFactor
+    );
+
+    if (!SceneManager.isPOV(posScaled, this.earth.getCamera())) return;
 
     const marker = this.earth.addMarkerFromEci(posVel.position);
     // Guardamos orbitalParams en userData para mostrar info después
@@ -72,6 +82,8 @@ export class SatelliteManager {
         sat.orbital // Aquí se pasa la info orbital completa
       );
     });
+
+    this.startDynamicLoading(filteredData);
   }
 
   public removeSatellite(id: string): void {
@@ -88,6 +100,7 @@ export class SatelliteManager {
     }
 
     this.satData.delete(id);
+    this.loadedSatelliteIds.delete(id);
 
     if (this.markers.size === 0 && this.updateInterval) {
       clearInterval(this.updateInterval);
@@ -95,14 +108,16 @@ export class SatelliteManager {
     }
   }
 
-  public updateSatellites(): void {
+  public updateSatellites(allSatellitesData?: any[]): void {
     const now = new Date();
-    const gmst = satellite.gstime(now);  // Greenwich Mean Sidereal Time
+    const camera = this.earth.getCamera();
+    camera.updateMatrixWorld(true);
 
     const earthRadiusKm = 6371;
     const earthSceneRadius = this.earth.getRadius();
     const scaleFactor = earthSceneRadius / earthRadiusKm;
 
+    // 1. Actualiza posiciones de satélites ya cargados y elimina los fuera del POV
     for (const [id, marker] of this.markers.entries()) {
       const data = this.satData.get(id);
       if (!data) continue;
@@ -110,39 +125,53 @@ export class SatelliteManager {
       const posVel = satellite.propagate(data.satrec, now);
       if (!posVel?.position) continue;
 
-      // Convertir ECI a ECEF
-      const ecefPos = satellite.eciToEcf(posVel.position, gmst);
-
-      // Actualizar la posición del marcador en el sistema de tu escena
-      // Usar coordenadas ECI directamente
-      marker.position.set(
-        ecefPos.x * scaleFactor,
-        ecefPos.z * scaleFactor,  // ← esto será el eje Y en Three.js
-        ecefPos.y * scaleFactor   // ← esto será el eje Z en Three.js
+      const posScaled = new Vector3(
+        posVel.position.x * scaleFactor,
+        posVel.position.z * scaleFactor,
+        posVel.position.y * scaleFactor
       );
+
+      // Actualiza posición del marcador
+      marker.position.copy(posScaled);
+
+      // Si ya no está visible, lo eliminamos
+      if (!SceneManager.isPOV(posScaled, camera)) {
+        this.removeSatellite(id);
+      }
     }
-  }
 
-  private updateOrbitLine(id: string, satPosition: { x: number; y: number; z: number }, scaleFactor: number): void {
-    const orbitLine = this.orbits.get(id);
-    if (!orbitLine) return;
+    // 2. Si se pasó el arreglo con todos los satélites, intentar cargar los nuevos visibles
+    if (allSatellitesData && allSatellitesData.length > 0) {
+      for (const sat of allSatellitesData) {
+        const id = sat.norad_cat_id;
+        if (this.loadedSatelliteIds.has(id)) continue; // Ya cargado
 
-    const positions = orbitLine.geometry.attributes['position'].array as Float32Array;
+        try {
+          const satrec = satellite.twoline2satrec(sat.tle_line_1, sat.tle_line_2);
+          const posVel = satellite.propagate(satrec, now);
+          if (!posVel?.position) continue;
 
-    const x = satPosition.x * scaleFactor;
-    const y = satPosition.y * scaleFactor;
-    const z = satPosition.z * scaleFactor;
+          const posScaled = new Vector3(
+            posVel.position.x * scaleFactor,
+            posVel.position.z * scaleFactor,
+            posVel.position.y * scaleFactor
+          );
 
-    positions[0] = x;
-    positions[1] = y;
-    positions[2] = z;
+          if (SceneManager.isPOV(posScaled, camera)) {
+            const name = sat.info?.satname ?? 'Unknown';
+            this.addSatellite(id, sat.tle_line_1, sat.tle_line_2, name, sat.orbital);
+          }
+        } catch (err) {
+          console.warn(`Error procesando satélite ${id}`, err);
+        }
+      }
+    }
 
-    const len = positions.length;
-    positions[len - 3] = x;
-    positions[len - 2] = y;
-    positions[len - 1] = z;
-
-    orbitLine.geometry.attributes['position'].needsUpdate = true;
+    // 3. Si no hay satélites y el intervalo está activo, limpia el intervalo
+    if (this.markers.size === 0 && this.updateInterval) {
+      clearInterval(this.updateInterval);
+      this.updateInterval = null;
+    }
   }
 
   public drawOrbit(id: string, tleLine1: string, tleLine2: string): Line | null {
@@ -158,33 +187,27 @@ export class SatelliteManager {
     const scaleFactor = this.earth.getRadius() / earthRadiusKm;
 
     const now = new Date();
-    const eciNow = satellite.propagate(satrec, now)?.position;
-    if (!eciNow) return null;
-
-    const x0 = eciNow.x * scaleFactor;
-    const y0 = eciNow.y * scaleFactor;
-    const z0 = eciNow.z * scaleFactor;
-
-    const positions: number[] = [x0, y0, z0];
-
     const orbitalPeriodMinutes = (2 * Math.PI) / satrec.no;
     const stepMinutes = 2;
     const steps = Math.ceil(orbitalPeriodMinutes / stepMinutes);
 
-    for (let i = 1; i <= steps; i++) {
+    const positions: number[] = [];
+
+    for (let i = 0; i <= steps; i++) {
       const time = new Date(now.getTime() + i * stepMinutes * 60 * 1000);
       const eci = satellite.propagate(satrec, time)?.position;
       if (!eci) continue;
 
+      // CORRECTED COORDINATES: x, z, y
       const x = eci.x * scaleFactor;
       const y = eci.y * scaleFactor;
       const z = eci.z * scaleFactor;
 
-      positions.push(x, y, z);
+      positions.push(x, z, y); // ← z como Y, y como Z
     }
 
-    // Añadir el punto inicial otra vez para cerrar el bucle
-    positions.push(x0, y0, z0);
+    // Añadir el primer punto al final para cerrar la órbita
+    positions.push(positions[0], positions[1], positions[2]);
 
     const geometry = new BufferGeometry();
     geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
@@ -207,5 +230,55 @@ export class SatelliteManager {
     this.markers.clear();
     this.orbits.clear();
     this.satData.clear();
+    this.loadedSatelliteIds.clear();
+  }
+
+  private cleanupSatellites(): void {
+    const camera = this.earth.getCamera();
+    for (const [id, marker] of this.markers.entries()) {
+      if (!SceneManager.isPOV(marker.position, camera)) {
+        this.removeSatellite(id);
+      }
+    }
+  }
+
+  public startDynamicLoading(allSatellitesData: any[]): void {
+    setInterval(() => {
+      const now = new Date();
+      const camera = this.earth.getCamera();
+      camera.updateMatrixWorld(true);
+
+      const earthRadiusKm = 6371;
+      const earthSceneRadius = this.earth.getRadius();
+      const scaleFactor = earthSceneRadius / earthRadiusKm;
+
+      for (const sat of allSatellitesData) {
+        const id = sat.norad_cat_id;
+        if (this.loadedSatelliteIds.has(id)) continue;
+
+        try {
+          const satrec = satellite.twoline2satrec(sat.tle_line_1, sat.tle_line_2);
+          const posVel = satellite.propagate(satrec, now);
+          if (!posVel?.position) continue;
+
+          const posScaled = new Vector3(
+            posVel.position.x * scaleFactor,
+            posVel.position.z * scaleFactor,
+            posVel.position.y * scaleFactor
+          );
+
+          if (SceneManager.isPOV(posScaled, camera)) {
+            const name = sat.info?.satname ?? 'Unknown';
+            this.addSatellite(id, sat.tle_line_1, sat.tle_line_2, name, sat.orbital);
+          }
+        } catch (err) {
+          console.warn(`Error con el satélite ${id}`, err);
+        }
+      }
+
+      // Limpia satélites fuera del POV
+      this.cleanupSatellites();
+
+    }, 3000);
   }
 }
