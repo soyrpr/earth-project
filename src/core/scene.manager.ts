@@ -1,12 +1,17 @@
 import {
   Scene, PerspectiveCamera, Mesh, Raycaster, Vector2,
-  Object3D, Line, MeshBasicMaterial, Color, HemisphereLight, Vector3, WebGLRenderer
+  Object3D, Line, MeshBasicMaterial, Color, HemisphereLight, Vector3, WebGLRenderer,
+  Frustum,
+  Matrix4,
+  Camera,
+  AmbientLight,
+  DirectionalLight
 } from "three";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { Earth } from "./earth";
 import { SatelliteManager } from "./satellite";
 import { Starfield } from "./starfield";
-import { RenderPass, UnrealBloomPass } from "three/examples/jsm/Addons.js";
+import { GLTFLoader, RenderPass, UnrealBloomPass } from "three/examples/jsm/Addons.js";
 
 export class SceneManager {
   private static _scene: Scene | null = null;
@@ -16,6 +21,8 @@ export class SceneManager {
   public static satelliteManager: SatelliteManager | null = null;
   public static composer: EffectComposer | null = null;
 
+  public static starlinkModel: Object3D | null = null;
+
   private static raycaster = new Raycaster();
   private static pointer = new Vector2();
 
@@ -23,6 +30,11 @@ export class SceneManager {
   private static selectedOrbitLine: Line | null = null;
 
   private static initialized = false;
+
+  private static frustum = new Frustum();
+  private static cameraViewProjectionMatrix = new Matrix4();
+
+  static modelsByName: Map<string, Object3D> = new Map();
 
   public static get scene(): Scene {
     if (!this._scene) throw new Error("SceneManager.scene no está inicializado");
@@ -50,11 +62,11 @@ public static async init(): Promise<void> {
   this.earth = new Earth(this.camera, this.scene);
   this.satelliteManager = new SatelliteManager(this.earth);
 
+  await SceneManager.loadStarlinkModel();
   await this.satelliteManager.loadSatellites(true);
 
   window.addEventListener('click', this.onDocumentClick.bind(this));
 }
-
 
   private static onDocumentClick(event: MouseEvent): void {
     this.pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -144,10 +156,15 @@ public static async init(): Promise<void> {
     this.scene.add(this._camera);
   }
 
-  private static createLights(): void {
-    const hemiLight = new HemisphereLight(0xffffff, 0x000000, 0.2);
-    this.scene.add(hemiLight);
-  }
+private static createLights(): void {
+  const ambientLight = new AmbientLight(0xffffff, 0.4);
+  this.scene.add(ambientLight);
+
+  const directionalLight = new DirectionalLight(0xffffff, 0.8);
+  directionalLight.position.set(50, 50, 50); // Ajusta según tu escena
+  this.scene.add(directionalLight);
+
+}
 
   public static initPostProcessing(renderer: WebGLRenderer): void {
     const renderScene = new RenderPass(this.scene, this.camera);
@@ -170,4 +187,32 @@ public static async init(): Promise<void> {
   public static update(): void {
     this.satelliteManager?.updateSatellites();
   }
+
+  public static isPOV(position: Vector3, camera: PerspectiveCamera): boolean {
+    this.cameraViewProjectionMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    this.frustum.setFromProjectionMatrix(this.cameraViewProjectionMatrix);
+    return this.frustum.containsPoint(position);
+  }
+
+  public static async loadStarlinkModel(): Promise<void> {
+    const loader = new GLTFLoader();
+    return new Promise((resolve, reject) => {
+      loader.load(
+        "assets/models/starlink_spacex_satellite.glb",
+        (gltf) => {
+          this.starlinkModel = gltf.scene;
+          this.starlinkModel.scale.set(0.2,0.2, 0.2);
+          this.starlinkModel.position.set(0, 0, 0);
+          console.log("Modelo Starlink cargado");
+          resolve();
+        },
+        undefined,
+        (error) => {
+          console.error("Error cargando modelo Starlink:", error);
+          reject(error);
+        }
+      );
+    });
+  }
+
 }

@@ -40,7 +40,7 @@ export class RendererManager {
       controls.enableDamping = true;
       controls.dampingFactor = 0.25;
       controls.enableZoom = true;
-      controls.minDistance= 60;
+      controls.minDistance= 35;
       controls.maxDistance = 700;
     }
   }

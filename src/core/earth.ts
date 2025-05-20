@@ -1,4 +1,4 @@
-import { Mesh, Camera, Texture, SphereGeometry, ShaderMaterial, Vector3, MeshBasicMaterial, Scene, Object3D } from "three";
+import { Mesh, Camera, Texture, SphereGeometry, ShaderMaterial, Vector3, MeshBasicMaterial, Scene, Object3D, PerspectiveCamera } from "three";
 import fragmentShader from "../assets/shaders/fragmentShader";
 import vertexShader from "../assets/shaders/vertexShader";
 import * as satellite from "satellite.js";
@@ -10,7 +10,7 @@ export class Earth {
   private readonly markerMaterial: MeshBasicMaterial;
 
   constructor(
-    private readonly camera: Camera,
+    private readonly camera: PerspectiveCamera,
     private readonly scene: Scene  // <-- necesitas pasar el Scene aquí
   ) {
     this.markerGeometry = new SphereGeometry(0.2, 8, 8);  // reutilizables
@@ -59,8 +59,8 @@ export class Earth {
     return marker;
   }
 
-  public removeMarker(marker: Mesh): void {
-    this.scene.remove(marker);  // eliminar marcador de la escena
+  removeMarker(marker: Object3D) {
+    this.scene.remove(marker);
   }
 
   public updateMarkerFromEci(marker: Mesh, eciPos: satellite.EciVec3<number>): void {
@@ -110,4 +110,7 @@ export class Earth {
   return marker;
 }
 
+  getCamera(): PerspectiveCamera {
+    return this.camera;
+  }
 }
