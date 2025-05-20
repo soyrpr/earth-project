@@ -116,6 +116,8 @@ public addSatellite(id: string, tleLine1: string, tleLine2: string, name: string
     });
 
     this.startDynamicLoading(filteredData);
+
+    this.startDynamicLoading(filteredData);
   }
 
   public removeSatellite(id: string): void {
@@ -133,6 +135,7 @@ public addSatellite(id: string, tleLine1: string, tleLine2: string, name: string
 
     this.satData.delete(id);
     this.loadedSatelliteIds.delete(id);
+    this.loadedSatelliteIds.delete(id);
 
     if (this.markers.size === 0) {
       this.stopUpdating();
@@ -141,7 +144,10 @@ public addSatellite(id: string, tleLine1: string, tleLine2: string, name: string
   }
 
   public updateSatellites(allSatellitesData?: any[]): void {
+  public updateSatellites(allSatellitesData?: any[]): void {
     const now = new Date();
+    const camera = this.earth.getCamera();
+    camera.updateMatrixWorld(true);
     const camera = this.earth.getCamera();
     camera.updateMatrixWorld(true);
 
@@ -218,6 +224,9 @@ public addSatellite(id: string, tleLine1: string, tleLine2: string, name: string
     const stepMinutes = 2;
     const steps = Math.ceil(orbitalPeriodMinutes / stepMinutes);
 
+    const positions: number[] = [];
+
+    for (let i = 0; i <= steps; i++) {
     const positions: number[] = [];
 
     for (let i = 0; i <= steps; i++) {

@@ -1,4 +1,4 @@
-import { Mesh, Camera, Texture, SphereGeometry, ShaderMaterial, Vector3, MeshBasicMaterial, Scene, Object3D, PerspectiveCamera } from "three";
+import { Mesh, Texture, SphereGeometry, ShaderMaterial, Vector3, MeshBasicMaterial, Scene, Object3D, PerspectiveCamera } from "three";
 import fragmentShader from "../assets/shaders/fragmentShader";
 import vertexShader from "../assets/shaders/vertexShader";
 import * as satellite from "satellite.js";
@@ -113,4 +113,5 @@ export class Earth {
   getCamera(): PerspectiveCamera {
     return this.camera;
   }
+
 }
