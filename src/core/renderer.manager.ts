@@ -8,7 +8,7 @@ export class RendererManager {
   private static renderer: WebGLRenderer;
   public static canvas: HTMLCanvasElement;
   private static composer: EffectComposer;
-  private static controls: OrbitControls;
+  public static controls: OrbitControls;
 
   private constructor() {
     RendererManager.init();
@@ -35,14 +35,14 @@ export class RendererManager {
     RendererManager.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = PCFSoftShadowMap;
 
-    if(!RendererManager.controls){
-      const controls = new OrbitControls(SceneManager.camera!, RendererManager.renderer.domElement);
-      controls.enableDamping = true;
-      controls.dampingFactor = 0.25;
-      controls.enableZoom = true;
-      controls.minDistance= 60;
-      controls.maxDistance = 700;
-    }
+  if (!RendererManager.controls) {
+    RendererManager.controls = new OrbitControls(SceneManager.camera!, RendererManager.renderer.domElement);
+    RendererManager.controls.enableDamping = true;
+    RendererManager.controls.dampingFactor = 0.25;
+    RendererManager.controls.enableZoom = true;
+    RendererManager.controls.minDistance = 35;
+    RendererManager.controls.maxDistance = 700;
+  }
   }
 
   private static renderLoop(): void {

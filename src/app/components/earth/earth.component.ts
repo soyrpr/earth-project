@@ -6,7 +6,7 @@ import { Earth } from '../../../core/earth';
 @Component({
   selector: 'app-earth',
   templateUrl: './earth.component.html',
-  styleUrls: ['./earth.component.css']  
+  styleUrls: ['./earth.component.css']
 })
 export class EarthComponent {
   ngAfterViewInit(): void {
