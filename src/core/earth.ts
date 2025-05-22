@@ -84,32 +84,6 @@ export class Earth {
     return this.radius;
   }
 
-  public addMalagaMarker(earth: Earth) {
-  const lat = 36.7213028;
-  const lon = -4.4216366;
-  const altitudeKm = 0.5; // 500 metros sobre la superficie terrestre
-
-  // Radio de la Tierra + altitud
-  const radius = earth.getRadius() + altitudeKm;
-
-  // Obtener coordenadas cartesianas
-  const [x, y, z] = earth.calcPosFromLatLonRad(lat, lon, radius);
-
-  // Crear geometría y material para el marcador
-  const markerGeometry = new SphereGeometry(0.3, 16, 16);
-  const markerMaterial = new MeshBasicMaterial({ color: 0xff0000 }); // rojo para que destaque
-
-  // Crear y posicionar marcador
-  const marker = new Mesh(markerGeometry, markerMaterial);
-  marker.position.set(x, y, z);
-
-  // Añadir el marcador a la escena
-  earth.addToScene(marker);
-
-  // Opcional: retornar el marcador para manipularlo si quieres
-  return marker;
-}
-
   getCamera(): PerspectiveCamera {
     return this.camera;
   }

@@ -1,1 +1,25 @@
-<p>satellites works!</p>
+<div class="search-container">
+  <input
+    type="text"
+    placeholder="Buscar satélite por nombre..."
+    [(ngModel)]="searchText"
+    (keyup.enter)="onSearch()"
+  />
+  <button (click)="onSearch()" [disabled]="searchStatus === 'loading'">Buscar</button>
+
+  <div class="status-message" *ngIf="searchStatus === 'loading'">Buscando satélites...</div>
+  <div class="status-message" *ngIf="searchStatus === 'not-found'">No se encontró ningún satélite con ese nombre.</div>
+  <div class="status-message" *ngIf="searchStatus === 'error'">{{ errorMessage }}</div>
+
+  <div *ngIf="searchResults.length > 0 && searchStatus === 'ready'" class="results-list">
+    <p>Listado:</p>
+    <ul>
+      <li *ngFor="let sat of searchResults"
+          (click)="focusOnSatellite(sat.norad_cat_id)"
+          [class.selected]="sat.norad_cat_id === selectedSatelliteId">
+          {{ sat.info?.satname }} (ID: {{ sat.norad_cat_id }})
+      </li>
+    </ul>
+  </div>
+
+</div>

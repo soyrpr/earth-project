@@ -17,7 +17,6 @@ export class EarthComponent {
 
     const earth = SceneManager.earth!;
     const loader = new TextureLoader();
-    earth.addMalagaMarker(earth);
 
     Promise.all([
       loader.loadAsync('assets/textures/earthmap1k.jpg'),
