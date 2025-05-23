@@ -3,8 +3,6 @@ import { SceneManager } from '../../../core/scene.manager';
 import { loadAndMergeSatelliteData } from '../../../../data/data-loader';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Vector3 } from 'three';
-import { identifierName } from '@angular/compiler';
 
 @Component({
   selector: 'app-satellites',
