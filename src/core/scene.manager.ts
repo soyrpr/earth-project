@@ -1,11 +1,12 @@
 import {
-  Scene, PerspectiveCamera, Mesh, Raycaster, Vector2,
-  Object3D, Line, MeshBasicMaterial, Color, HemisphereLight, Vector3, WebGLRenderer,
+  Scene, PerspectiveCamera,  Raycaster, Vector2,
+  Object3D, Line, MeshBasicMaterial, Color,  Vector3, WebGLRenderer,
   Frustum,
   Matrix4,
-  Camera,
   AmbientLight,
-  DirectionalLight
+  DirectionalLight,
+  BufferGeometry,
+  LineBasicMaterial
 } from "three";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { Earth } from "./earth";
@@ -23,11 +24,12 @@ export class SceneManager {
   public static composer: EffectComposer | null = null;
   public static starlinkModel: Object3D | null = null;
 
-  private static raycaster = new Raycaster();
-  private static pointer = new Vector2();
+  private static readonly raycaster = new Raycaster();
+  private static readonly pointer = new Vector2();
 
   private static selectedSatellite: Object3D | null = null;
   private static selectedOrbitLine: Line | null = null;
+  private static selectedConnectionLine: Line | null = null;
 
   private static initialized = false;
 
@@ -72,72 +74,194 @@ export class SceneManager {
     this.composer.setSize(window.innerWidth, window.innerHeight);
   }
 
-private static onDocumentClick(event: MouseEvent): void {
-  this.pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
-  this.pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  private static onDocumentClick(event: MouseEvent): void {
+    this.pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+    this.pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
-  this.raycaster.setFromCamera(this.pointer, this.camera);
+    this.raycaster.setFromCamera(this.pointer, this.camera);
 
-  const satelliteMeshes = this.satelliteManager?.getSatelliteMeshes() || [];
-  const intersects = this.raycaster.intersectObjects(satelliteMeshes, true);
+    const instancedMesh = this.satelliteManager?.getInstancedMesh();
+    if (!instancedMesh) {
+      console.log('No hay mesh instanciado disponible');
+      this.hideSatelliteInfo();
+      return;
+    }
 
-  for (const intersect of intersects) {
-    let current: Object3D | null = intersect.object;
-    while (current) {
-      console.log('Objeto bajo cursor:', current.name, current.userData);
-      if (current.userData && current.userData['name']) {
-        console.log('¡Satélite detectado:', current.userData['name']);
-        this.showSatelliteInfo(current);
+    // Configuración del raycaster
+    this.raycaster.near = 0.1;
+    this.raycaster.far = 1000;
+
+    console.log('Raycaster ray:', {
+      origin: this.raycaster.ray.origin,
+      direction: this.raycaster.ray.direction
+    });
+
+    const intersects = this.raycaster.intersectObject(instancedMesh);
+    console.log('Intersecciones encontradas:', intersects.length);
+    console.log('Posición del click:', this.pointer);
+    console.log('Posición de la cámara:', this.camera.position);
+
+    if (intersects.length > 0) {
+      const instanceId = intersects[0].instanceId;
+      if (instanceId !== undefined) {
+        console.log('Click en satélite con instanceId:', instanceId);
+        const satData = this.satelliteManager!.getSatelliteDataByInstancedId(instanceId);
+        if (!satData) {
+          console.log('No se encontraron datos para el satélite con instanceId:', instanceId);
+          this.hideSatelliteInfo();
+          return;
+        }
+
+        console.log('Datos del satélite encontrado:', satData);
+        this.showSatelliteInfoFromData(satData, instanceId);
         return;
       }
-      current = current.parent;
     }
+
+    console.log('No se encontró satélite bajo el clic');
+    this.hideSatelliteInfo();
   }
 
-  // console.log('No se encontró satélite bajo el clic');
-  this.hideSatelliteInfo();
-}
+  public static showSatelliteInfoFromData(satData: any, instanceId: number): void {
+    if (!satData) return;
 
-  public static showSatelliteInfo(object: Object3D): void {
-    const box = document.getElementById("satellite-info-box");
-    if (box) box.style.display = "block";
+    console.log('Mostrando información del satélite:', satData);
 
-    if (this.selectedSatellite && this.selectedSatellite !== object) {
-      const prev = this.selectedSatellite as Mesh;
-      if (prev.material) {
-        (prev.material as MeshBasicMaterial).color.set(0x00ffff);
+    // Calcular latitud y longitud
+    const position = satData.position;
+    const lat = Math.atan2(position.z, Math.sqrt(position.x * position.x + position.y * position.y));
+    const lon = Math.atan2(position.y, position.x);
+
+    // Obtener el tipo de órbita y la altitud real
+    const { orbitType } = this.satelliteManager!.getOrbitTypeAndColor(satData.position);
+    const altitude = satData.altitude;
+
+    // Función auxiliar para formatear números
+    const formatNumber = (value: any, decimals: number = 2): string => {
+      if (typeof value === 'number') {
+        return value.toFixed(decimals);
       }
-      if (this.selectedOrbitLine) {
-        this.selectedOrbitLine.geometry.dispose();
-        (this.selectedOrbitLine.material as MeshBasicMaterial).dispose();
-        this.scene.remove(this.selectedOrbitLine);
-        this.selectedOrbitLine = null;
-      }
+      return 'N/A';
+    };
+
+    const info = {
+      'Nombre': satData.name,
+      'ID': satData.id,
+      'Tipo de Órbita': orbitType,
+      'Altitud': `${formatNumber(altitude)} km`,
+      'Latitud': this.formatCoordinate(lat * (180 / Math.PI), 'N', 'S'),
+      'Longitud': this.formatCoordinate(lon * (180 / Math.PI), 'E', 'W'),
+      'Velocidad Orbital': satData.orbital?.velocity ? `${formatNumber(satData.orbital.velocity)} km/s` : 'N/A',
+      'Período': satData.orbital?.period ? `${formatNumber(satData.orbital.period)} min` : 'N/A',
+      'Inclinación': satData.orbital?.inclination ? `${formatNumber(satData.orbital.inclination)}°` : 'N/A',
+      'Apogeo': satData.orbital?.apogee ? `${formatNumber(satData.orbital.apogee)} km` : 'N/A',
+      'Perigeo': satData.orbital?.perigee ? `${formatNumber(satData.orbital.perigee)} km` : 'N/A'
+    };
+
+    const infoHtml = Object.entries(info)
+      .map(([key, value]) => `<div><strong>${key}:</strong> ${value}</div>`)
+      .join('');
+
+    // Intentar encontrar el elemento por diferentes IDs posibles
+    const infoElement = document.getElementById('satellite-info') ||
+                       document.getElementById('satellite-info-box') ||
+                       document.getElementById('info-panel');
+
+    if (infoElement) {
+      console.log('Elemento de información encontrado, actualizando contenido');
+      infoElement.innerHTML = infoHtml;
+      infoElement.style.display = 'block';
+    } else {
+      console.error('No se encontró el elemento para mostrar la información del satélite');
+      // Crear el elemento si no existe
+      const newInfoElement = document.createElement('div');
+      newInfoElement.id = 'satellite-info';
+      newInfoElement.style.position = 'absolute';
+      newInfoElement.style.top = '20px';
+      newInfoElement.style.right = '20px';
+      newInfoElement.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+      newInfoElement.style.color = 'white';
+      newInfoElement.style.padding = '15px';
+      newInfoElement.style.borderRadius = '5px';
+      newInfoElement.style.fontFamily = 'Arial, sans-serif';
+      newInfoElement.style.zIndex = '1000';
+      newInfoElement.innerHTML = infoHtml;
+      document.body.appendChild(newInfoElement);
     }
 
-    this.selectedSatellite = object;
-
-    if ((object as Mesh).material) {
-      const mesh = object as Mesh;
-      mesh.material = (mesh.material as MeshBasicMaterial).clone();
-      (mesh.material as MeshBasicMaterial).color.set(0xff0000);
+    // Limpiar líneas anteriores
+    if (this.selectedOrbitLine) {
+      this.selectedOrbitLine.geometry.dispose();
+      (this.selectedOrbitLine.material as MeshBasicMaterial).dispose();
+      this.scene.remove(this.selectedOrbitLine);
+      this.selectedOrbitLine = null;
     }
 
-    const orbitLine = this.satelliteManager!.drawOrbit(
-      object.userData['id'],
-      object.userData['tleLine1'],
-      object.userData['tleLine2']
-    );
+    if (this.selectedConnectionLine) {
+      this.selectedConnectionLine.geometry.dispose();
+      (this.selectedConnectionLine.material as MeshBasicMaterial).dispose();
+      this.scene.remove(this.selectedConnectionLine);
+      this.selectedConnectionLine = null;
+    }
 
-    if (orbitLine) {
-      this.selectedOrbitLine = orbitLine;
-      this.scene.add(orbitLine);
+    // Crear línea de conexión al centro
+    const points = [
+      new Vector3(0, 0, 0),  // Centro de la Tierra
+      position.clone()       // Posición del satélite
+    ];
+    const geometry = new BufferGeometry().setFromPoints(points);
+    const material = new LineBasicMaterial({
+      color: 0x00ff00,  // Color verde
+      linewidth: 2,
+      transparent: true,
+      opacity: 0.5
+    });
+    this.selectedConnectionLine = new Line(geometry, material);
+    this.scene.add(this.selectedConnectionLine);
+
+    // Dibujar nueva órbita
+    const tleLine1 = satData.tleLine1 || satData.tle_line_1;
+    const tleLine2 = satData.tleLine2 || satData.tle_line_2;
+    const satId = satData.id || satData.norad_cat_id;
+
+    if (tleLine1 && tleLine2 && satId) {
+      console.log('Dibujando órbita para satélite:', satId);
+      const orbitLine = this.satelliteManager!.drawOrbit(
+        satId,
+        tleLine1,
+        tleLine2
+      );
+
+      if (orbitLine) {
+        this.selectedOrbitLine = orbitLine;
+        this.scene.add(orbitLine);
+      }
     }
   }
 
   private static hideSatelliteInfo(): void {
-    const box = document.getElementById("satellite-info-box");
-    if (box) box.style.display = "none";
+    const infoElement = document.getElementById('satellite-info') ||
+                       document.getElementById('satellite-info-box') ||
+                       document.getElementById('info-panel');
+
+    if (infoElement) {
+      infoElement.style.display = 'none';
+    }
+
+    // Limpiar líneas cuando se oculta la información
+    if (this.selectedOrbitLine) {
+      this.selectedOrbitLine.geometry.dispose();
+      (this.selectedOrbitLine.material as MeshBasicMaterial).dispose();
+      this.scene.remove(this.selectedOrbitLine);
+      this.selectedOrbitLine = null;
+    }
+
+    if (this.selectedConnectionLine) {
+      this.selectedConnectionLine.geometry.dispose();
+      (this.selectedConnectionLine.material as MeshBasicMaterial).dispose();
+      this.scene.remove(this.selectedConnectionLine);
+      this.selectedConnectionLine = null;
+    }
   }
 
   private static createScene(): void {
@@ -207,7 +331,7 @@ private static onDocumentClick(event: MouseEvent): void {
   public static async focusCameraOnSatelliteById(id: string): Promise<void> {
     if (!this.satelliteManager) return;
 
-    let satObj = this.satelliteManager.getSatelliteMeshes().find(m => m.userData['id'] === id);
+    let satObj = this.satelliteManager.getSatelliteMeshes().find((m: Object3D) => m.userData['id'] === id);
 
     if (!satObj) {
       // No está cargado: intenta cargarlo
@@ -220,7 +344,6 @@ private static onDocumentClick(event: MouseEvent): void {
       console.warn(`No se pudo enfocar cámara en satélite con ID ${id}`);
     }
   }
-
 
   public static isPOV(position: Vector3, camera: PerspectiveCamera): boolean {
     this.cameraViewProjectionMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
@@ -247,5 +370,13 @@ private static onDocumentClick(event: MouseEvent): void {
         }
       );
     });
+  }
+
+  private static formatCoordinate(value: number, posDir: string, negDir: string): string {
+    const absValue = Math.abs(value);
+    const degrees = Math.floor(absValue);
+    const minutes = (absValue - degrees) * 60;
+    const direction = value >= 0 ? posDir : negDir;
+    return `${degrees}° ${minutes.toFixed(2)}' ${direction}`;
   }
 }

@@ -118,7 +118,7 @@ async focusOnSatellite(sat: any): Promise<void> {
   }
 
   SceneManager.focusCameraOnSatelliteById(id);
-  SceneManager.showSatelliteInfo(mesh);
+  SceneManager.showSatelliteInfoFromData(mesh.userData, mesh.userData['id']);
   this.selectedSatelliteId = Number(id);
 }
 

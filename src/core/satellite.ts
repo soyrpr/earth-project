@@ -1,7 +1,7 @@
-import { Mesh, Line, BufferGeometry, Float32BufferAttribute, LineBasicMaterial, Vector3, Object3D, MeshBasicMaterial, InstancedMesh, Color, SphereGeometry, DynamicDrawUsage } from 'three';
+import { Line, BufferGeometry, Float32BufferAttribute, LineBasicMaterial, Vector3, Object3D, MeshBasicMaterial, InstancedMesh, Color, SphereGeometry, DynamicDrawUsage, Matrix4, Quaternion } from 'three';
 import * as satellite from 'satellite.js';
 
-import { loadAndMergeSatelliteData } from "../assets/data/data-loader";
+import { loadAndMergeSatelliteData } from '../assets/data/data-loader';
 import { Earth } from './earth';
 import { SceneManager } from './scene.manager';
 
@@ -13,6 +13,9 @@ interface SatelliteData {
   name: string;
   satrec: satellite.SatRec;
   orbital?: any;
+  position?: Vector3;
+  id: string;
+  altitude: number;
 }
 
 export class SatelliteManager {
@@ -31,6 +34,8 @@ export class SatelliteManager {
   private propagatedPositions = new Map<string, Vector3>();
   private visibleSatelliteIds = new Set<string>();
   private hiddenSatelliteIds = new Set<string>();
+  private satelliteDataArray: SatelliteData[] = [];
+
   private lastUpdateTime = 0;
   private readonly UPDATE_THROTTLE = 100;
   private readonly POSITION_CACHE_TIME = 5000;
@@ -42,6 +47,7 @@ export class SatelliteManager {
     MEDIUM: 5000,
     FAR: 20000
   };
+
   private clusters: Map<string, Set<string>> = new Map();
   private clusterPositions: Map<string, Vector3> = new Map();
 
@@ -49,6 +55,90 @@ export class SatelliteManager {
 
   public addSatelliteClickListener(callback: (data: SatelliteData) => void) {
     this.onSatelliteClickCallback = callback;
+  }
+
+  public getInstancedMesh(): InstancedMesh | null {
+    const meshes = Array.from(this.instancedMeshes.values());
+    if (meshes.length === 0) {
+      console.log('No hay meshes instanciados disponibles');
+      return null;
+    }
+
+    // Combinamos todos los meshes en uno solo para el raycast
+    const combinedMesh = new InstancedMesh(
+      new SphereGeometry(0.2),
+      new MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 }),
+      this.MAX_INSTANCES_PER_TYPE
+    );
+
+    let totalInstances = 0;
+    const matrix = new Matrix4();
+    const position = new Vector3();
+    const quaternion = new Quaternion();
+    const scale = new Vector3();
+
+    // Mapa para mantener la referencia entre índices combinados y datos originales
+    const combinedToOriginalMap = new Map<number, { orbitType: string, originalIndex: number }>();
+
+    for (const [orbitType, mesh] of this.instancedMeshes) {
+      const instanceCount = this.instanceIndexCounter.get(orbitType) || 0;
+      console.log(`Procesando ${instanceCount} instancias de tipo ${orbitType}`);
+
+      for (let i = 0; i < instanceCount; i++) {
+        mesh.getMatrixAt(i, matrix);
+        matrix.decompose(position, quaternion, scale);
+        combinedMesh.setMatrixAt(totalInstances, matrix);
+        combinedToOriginalMap.set(totalInstances, { orbitType, originalIndex: i });
+        totalInstances++;
+      }
+    }
+
+    combinedMesh.count = totalInstances;
+    combinedMesh.instanceMatrix.needsUpdate = true;
+    combinedMesh.frustumCulled = false;
+
+    combinedMesh.raycast = (raycaster: any, intersects: any) => {
+      const matrix = new Matrix4();
+      const position = new Vector3();
+      const quaternion = new Quaternion();
+      const scale = new Vector3();
+
+      console.log(`Raycasting ${totalInstances} instancias combinadas`);
+
+      for (let i = 0; i < totalInstances; i++) {
+        combinedMesh.getMatrixAt(i, matrix);
+        matrix.decompose(position, quaternion, scale);
+
+        const distance = raycaster.ray.distanceToPoint(position);
+        if (distance < 2) {
+          const originalData = combinedToOriginalMap.get(i);
+          if (originalData) {
+            intersects.push({
+              distance: distance,
+              point: position.clone(),
+              instanceId: i,
+              object: combinedMesh,
+              userData: originalData // Añadimos los datos originales
+            });
+            console.log(`Intersección encontrada con instancia ${i} (${originalData.orbitType}) a distancia ${distance}`);
+          }
+        }
+      }
+    };
+
+    return combinedMesh;
+  }
+
+  public getSatelliteDataByInstancedId(index: number): SatelliteData | null {
+    // Buscamos en todos los tipos de órbita
+    for (const [orbitType, _] of this.instancedMeshes) {
+      const instanceCount = this.instanceIndexCounter.get(orbitType) || 0;
+      if (index < instanceCount) {
+        return this.satelliteDataArray[index] || null;
+      }
+      index -= instanceCount;
+    }
+    return null;
   }
 
   private createInstancedMesh(orbitType: string, color: number, maxCount = this.MAX_INSTANCES_PER_TYPE) {
@@ -61,8 +151,36 @@ export class SatelliteManager {
 
     const instancedMesh = new InstancedMesh(geometry, material, maxCount);
     instancedMesh.instanceMatrix.setUsage(DynamicDrawUsage);
-    this.earth.addToScene(instancedMesh);
+    instancedMesh.frustumCulled = false;
+    instancedMesh.raycast = (raycaster: any, intersects: any) => {
+      const matrix = new Matrix4();
+      const position = new Vector3();
+      const quaternion = new Quaternion();
+      const scale = new Vector3();
 
+      const instanceCount = this.instanceIndexCounter.get(orbitType) || 0;
+      console.log(`Raycasting ${instanceCount} instances for orbit type ${orbitType}`);
+
+      for (let i = 0; i < instanceCount; i++) {
+        instancedMesh.getMatrixAt(i, matrix);
+        matrix.decompose(position, quaternion, scale);
+
+        const distance = raycaster.ray.distanceToPoint(position);
+        console.log(`Instance ${i} at position:`, position, 'distance:', distance);
+
+        if (distance < 2) { // Aumentamos el radio de detección
+          intersects.push({
+            distance: distance,
+            point: position.clone(),
+            instanceId: i,
+            object: instancedMesh
+          });
+          console.log(`Intersection found with instance ${i}`);
+        }
+      }
+    };
+
+    this.earth.addToScene(instancedMesh);
     this.instancedMeshes.set(orbitType, instancedMesh);
     this.instanceIndexCounter.set(orbitType, 0);
   }
@@ -79,7 +197,7 @@ export class SatelliteManager {
     }
   }
 
-  public addSatellite(id: string, tleLine1: string, tleLine2: string, name: string, orbital?: any): void {
+  public addSatellite(id: string, tleLine1: string, tleLine2: string, name: string, orbital?: any, position?: Vector3): void {
     if (this.markers.has(id) || this.loadedSatelliteIds.has(id)) return;
 
     const satrec = satellite.twoline2satrec(tleLine1, tleLine2);
@@ -88,7 +206,7 @@ export class SatelliteManager {
     if (!posVel?.position) return;
 
     const scaleFactor = this.earth.getRadius() / EARTH_RADIUS_KM;
-    const posScaled = new Vector3(
+    const posScaled = position || new Vector3(
       posVel.position.x * scaleFactor,
       posVel.position.z * scaleFactor,
       posVel.position.y * scaleFactor
@@ -105,8 +223,7 @@ export class SatelliteManager {
     const instancedMesh = this.instancedMeshes.get(orbitType);
     const index = this.instanceIndexCounter.get(orbitType)!;
 
-    // Check if we've reached the instance limit
-    if (index >= 53000) {
+    if (index >= this.MAX_INSTANCES_PER_TYPE) {
       console.warn(`Reached instance limit for orbit type ${orbitType}`);
       return;
     }
@@ -119,21 +236,30 @@ export class SatelliteManager {
     instancedMesh!.setMatrixAt(index, dummy.matrix);
     instancedMesh!.instanceMatrix.needsUpdate = true;
 
-    // Guardar datos
-    this.satData.set(id, { tleLine1, tleLine2, name, satrec, orbital });
+    const r = Math.sqrt(
+      posVel.position.x ** 2 +
+      posVel.position.y ** 2 +
+      posVel.position.z ** 2
+    );
+    const altitude = Math.abs(r - EARTH_RADIUS_KM);
+
+    const satData: SatelliteData = {
+      tleLine1,
+      tleLine2,
+      name,
+      satrec,
+      orbital,
+      position: posScaled,
+      id: id,
+      altitude: altitude
+    };
+    this.satData.set(id, satData);
+    this.satelliteDataArray[index] = satData;
     this.loadedSatelliteIds.add(id);
     this.visibleSatelliteIds.add(id);
     this.hiddenSatelliteIds.delete(id);
     this.instanceIndexCounter.set(orbitType, index + 1);
   }
-
-  private applyUserDataToHierarchy(obj: Object3D, userData: any): void {
-    obj.userData = userData;
-    obj.traverse(child => {
-      child.userData = userData;
-    });
-  }
-
 
   public async loadSatellites(filterStarlinkOnly: boolean = true): Promise<void> {
     const satellitesData = await loadAndMergeSatelliteData();
@@ -153,20 +279,32 @@ export class SatelliteManager {
     const sat = this.allSatellitesData.find(s => s.norad_cat_id === id);
     if (!sat) {
       console.warn(`No se encontró satélite con ID ${id} en datos cargados.`);
-      return undefined;  // <-- Cambia null por undefined
+      return undefined;
     }
 
     try {
       const name = sat.info?.satname ?? 'Unknown';
       const orbital = sat.orbital ?? {};
-      this.addSatellite(id, sat.tle_line_1, sat.tle_line_2, name, orbital);
+      const satrec = satellite.twoline2satrec(sat.tle_line_1, sat.tle_line_2);
+      const posVel = satellite.propagate(satrec, new Date());
+
+      if (!posVel?.position) return undefined;
+
+      const scaleFactor = this.earth.getRadius() / EARTH_RADIUS_KM;
+      const position = new Vector3(
+        posVel.position.x * scaleFactor,
+        posVel.position.z * scaleFactor,
+        posVel.position.y * scaleFactor
+      );
+
+      this.addSatellite(id, sat.tle_line_1, sat.tle_line_2, name, orbital, position);
 
       await new Promise(r => setTimeout(r, 50));
 
-      return this.markers.get(id);  // Puede ser undefined, no null
+      return this.markers.get(id);
     } catch (e) {
       console.error(`Error al cargar satélite ${id}:`, e);
-      return undefined;  // <-- Cambia null por undefined
+      return undefined;
     }
   }
 
@@ -239,6 +377,7 @@ export class SatelliteManager {
     if (now - this.lastUpdateTime < this.UPDATE_THROTTLE) {
       return;
     }
+
     this.lastUpdateTime = now;
 
     const camera = this.earth.getCamera();
@@ -277,12 +416,10 @@ export class SatelliteManager {
       }
     }
 
-    // Actualizar matrices de instancias
     for (const mesh of this.instancedMeshes.values()) {
       mesh.instanceMatrix.needsUpdate = true;
     }
 
-    // Cargar más satélites si es necesario
     if (this.loadedSatelliteIds.size < this.allSatellitesData.length) {
       this.tryAddVisibleSatellites();
     }
@@ -291,7 +428,7 @@ export class SatelliteManager {
   private tryAddVisibleSatellites(): void {
     const camera = this.earth.getCamera();
     const cameraPosition = camera.position.clone();
-    const batchSize = 1000; // Cargar en lotes
+    const batchSize = 1000;
     let loadedCount = 0;
 
     for (const sat of this.allSatellitesData) {
@@ -310,7 +447,7 @@ export class SatelliteManager {
         if (distance < this.LOD_DISTANCES.FAR) {
           const name = sat.info?.satname ?? 'Unknown';
           const orbital = sat.orbital ?? {};
-          this.addSatellite(id, sat.tle_line_1, sat.tle_line_2, name, orbital);
+          this.addSatellite(id, sat.tle_line_1, sat.tle_line_2, name, orbital, posScaled);
           loadedCount++;
         }
       } catch (error) {
@@ -422,15 +559,12 @@ export class SatelliteManager {
 
   private cleanupSatellites(): void {
     const camera = this.earth.getCamera();
-    const toRemove: string[] = [];
-
-    for (const [id, marker] of this.markers.entries()) {
-      if (!SceneManager.isPOV(marker.position, camera)) {
-        toRemove.push(id);
+    for (const [id, data] of this.satData.entries()) {
+      const pos = this.getCachedPosition(id, data.satrec);
+      if (!pos || !SceneManager.isPOV(pos, camera)) {
+        this.removeSatellite(id);
       }
     }
-
-    toRemove.forEach(id => this.removeSatellite(id));
   }
 
   public searchAndDisplaySatelliteByName(nameQuery: string): SatelliteData[] {
@@ -454,11 +588,27 @@ export class SatelliteManager {
         const posVel = satellite.propagate(satrec, new Date());
         if (!posVel?.position) continue;
 
+        const scaleFactor = this.earth.getRadius() / EARTH_RADIUS_KM;
+        const position = new Vector3(
+          posVel.position.x * scaleFactor,
+          posVel.position.z * scaleFactor,
+          posVel.position.y * scaleFactor
+        );
+
         const name = sat.info?.satname ?? 'Unknown';
         const orbital = sat.orbital ?? {};
-        this.addSatellite(id, sat.tle_line_1, sat.tle_line_2, name, orbital);
+        this.addSatellite(id, sat.tle_line_1, sat.tle_line_2, name, orbital, position);
 
-        const satData: SatelliteData = { tleLine1: sat.tle_line_1, tleLine2: sat.tle_line_2, name, satrec, orbital };
+        const satData: SatelliteData = {
+          tleLine1: sat.tle_line_1,
+          tleLine2: sat.tle_line_2,
+          name,
+          satrec,
+          orbital,
+          position,
+          id: id,
+          altitude: 0
+        };
         results.push(satData);
       } catch {
         continue;
@@ -468,19 +618,23 @@ export class SatelliteManager {
     return results;
   }
 
-  private getOrbitTypeAndColor(positionEci: { x: number; y: number; z: number }): { orbitType: string; color: number } {
+  public getOrbitTypeAndColor(positionEci: { x: number; y: number; z: number }): { orbitType: string; color: number } {
     const r = Math.sqrt(positionEci.x ** 2 + positionEci.y ** 2 + positionEci.z ** 2);
-    const altitude = r - EARTH_RADIUS_KM;
-    // console.log(`Altitud: ${altitude.toFixed(2)} km`);
+    const altitude = Math.abs(r - EARTH_RADIUS_KM);
 
     if (altitude >= 160 && altitude <= 2000) {
-      return { orbitType: 'LEO', color: 0x00ff00 };  // verde
+      return { orbitType: 'LEO (Órbita Terrestre Baja)', color: 0x00ff00 };  // verde
     } else if (altitude > 2000 && altitude < 35786) {
-      return { orbitType: 'MEO', color: 0xffff00 };  // amarillo
+      return { orbitType: 'MEO (Órbita Terrestre Media)', color: 0xffff00 };  // amarillo
     } else if (altitude >= 35686 && altitude <= 35886) {
-      return { orbitType: 'GEO', color: 0xff0000 };  // rojo
+      return { orbitType: 'GEO (Órbita Geosíncrona)', color: 0xff0000 };  // rojo
     } else {
-      return { orbitType: 'Other', color: 0x888888 }; // gris
+      return { orbitType: 'Desconocido', color: 0x888888 }; // gris
     }
+  }
+
+  public calculateAltitude(positionEci: { x: number; y: number; z: number }): number {
+    const r = Math.sqrt(positionEci.x ** 2 + positionEci.y ** 2 + positionEci.z ** 2);
+    return r - EARTH_RADIUS_KM;
   }
 }
