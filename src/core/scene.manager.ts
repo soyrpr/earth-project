@@ -98,7 +98,6 @@ private static onDocumentClick(event: MouseEvent): void {
   this.hideSatelliteInfo();
 }
 
-
   public static showSatelliteInfo(object: Object3D): void {
     const box = document.getElementById("satellite-info-box");
     if (box) box.style.display = "block";

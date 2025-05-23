@@ -1,5 +1,5 @@
 
-import { Mesh, Line, BufferGeometry, Float32BufferAttribute, LineBasicMaterial, Vector3, Object3D, MeshBasicMaterial } from 'three';
+import { Mesh, Line, BufferGeometry, Float32BufferAttribute, LineBasicMaterial, Vector3, Object3D, MeshBasicMaterial, InstancedMesh, Color, SphereGeometry, DynamicDrawUsage } from 'three';
 import * as satellite from 'satellite.js';
 
 import { loadAndMergeSatelliteData } from "../assets/data/data-loader";
@@ -25,12 +25,30 @@ export class SatelliteManager {
   private loadedSatelliteIds: Set<string> = new Set();
   private onSatelliteClickCallback?: (data: SatelliteData) => void;
   private allSatellitesData: any[] = [];
+  private instancedMeshes: Map<string, InstancedMesh> = new Map();
+  private instanceIndexCounter: Map<string, number> = new Map();
+  private instanceLookup: Map<string, { orbitType: string, index: number }> = new Map();
+  private visibleSatellitesIds = new Set<string>();
+private propagatedPositions = new Map<number, Vector3>();
+private visibleSatelliteIds = new Set<number>();
+private hiddenSatelliteIds = new Set<number>();
 
   constructor(private readonly earth: Earth) {}
 
   public addSatelliteClickListener(callback: (data: SatelliteData) => void) {
     this.onSatelliteClickCallback = callback;
   }
+private createInstancedMesh(orbitType: string, color: number, maxCount = 53000) {
+  const geometry = new SphereGeometry(0.2);
+  const material = new MeshBasicMaterial({ color: new Color(color) });
+
+  const instancedMesh = new InstancedMesh(geometry, material, maxCount);
+  instancedMesh.instanceMatrix.setUsage(DynamicDrawUsage);
+  this.earth.addToScene(instancedMesh);
+
+  this.instancedMeshes.set(orbitType, instancedMesh);
+  this.instanceIndexCounter.set(orbitType, 0);
+}
 
   public handleSatelliteClick(id: string): void {
     const data = this.satData.get(id);
@@ -52,7 +70,6 @@ public addSatellite(id: string, tleLine1: string, tleLine2: string, name: string
   const posVel = satellite.propagate(satrec, now);
   if (!posVel?.position) return;
 
-  // Escalar posición ECI a unidades de la escena
   const scaleFactor = this.earth.getRadius() / EARTH_RADIUS_KM;
   const posScaled = new Vector3(
     posVel.position.x * scaleFactor,
@@ -62,42 +79,28 @@ public addSatellite(id: string, tleLine1: string, tleLine2: string, name: string
 
   if (!SceneManager.isPOV(posScaled, this.earth.getCamera())) return;
 
-  // Calcular tipo de órbita y color SOLO una vez
   const { color, orbitType } = this.getOrbitTypeAndColor(posVel.position);
 
-  let marker: Object3D;
-  const model = SceneManager.modelsByName.get(name.toLowerCase()) || SceneManager.starlinkModel;
-
-  if (model) {
-    marker = model.clone();
-    marker.position.copy(posScaled);
-
-    if (marker instanceof Mesh) {
-      this.setColorOnMesh(marker, color, orbitType);
-    }
-
-    marker.name = name;
-    this.earth.addToScene(marker);
-  } else {
-    marker = this.earth.addMarkerFromEci(posVel.position);
+  if (!this.instancedMeshes.has(orbitType)) {
+    this.createInstancedMesh(orbitType, color);
   }
 
-  // Guardar también el tipo de órbita y color calculado
-  this.applyUserDataToHierarchy(marker, {
-    tleLine1,
-    tleLine2,
-    name,
-    id,
-    orbital,
-    orbitType,
-    color
-  });
+  const instancedMesh = this.instancedMeshes.get(orbitType);
+  const index = this.instanceIndexCounter.get(orbitType)!;
+  this.instanceLookup.set(id, { orbitType, index });
 
-  this.markers.set(id, marker);
+  const dummy = new Object3D();
+  dummy.position.copy(posScaled);
+  dummy.updateMatrix();
+  instancedMesh!.setMatrixAt(index, dummy.matrix);
+  instancedMesh!.instanceMatrix.needsUpdate = true;
+
+  // Guardar datos
   this.satData.set(id, { tleLine1, tleLine2, name, satrec, orbital });
   this.loadedSatelliteIds.add(id);
-  this.startUpdating();
+  this.instanceIndexCounter.set(orbitType, index + 1);
 }
+
 
   private applyUserDataToHierarchy(obj: Object3D, userData: any): void {
     obj.userData = userData;
@@ -156,53 +159,97 @@ public async loadSatelliteById(id: string): Promise<Object3D | undefined> {
 
       try {
         const satrec = satellite.twoline2satrec(sat.tle_line_1, sat.tle_line_2);
-        const posVel = satellite.propagate(satrec, now);
-        if (!posVel?.position) continue;
+        if(this.propagatedPositions.has(id)) continue;
 
-        const posScaled = new Vector3(
+        const posVel = satellite.propagate(satrec, now);
+        if(!posVel?.position) continue;
+
+        const pos = new Vector3(
           posVel.position.x * scaleFactor,
           posVel.position.z * scaleFactor,
           posVel.position.y * scaleFactor
         );
-        // console.log('Datos satélite:', sat);
 
-        if (SceneManager.isPOV(posScaled, camera)) {
+        this.propagatedPositions.set(id, pos);
+
+        if (SceneManager.isPOV(pos, camera)) {
           const name = sat.info?.satname ?? 'Unknown';
           const orbital = sat.orbital ?? {};
           this.addSatellite(id, sat.tle_line_1, sat.tle_line_2, name, orbital);
+
+          this.visibleSatellitesIds.add(id);
+          this.hiddenSatelliteIds.delete(id);
+        } else {
+          this.visibleSatellitesIds.add(id);
+          this.visibleSatellitesIds.delete(id);
         }
       } catch {}
     }
   }
 
-  public updateSatellites(): void {
-    const now = new Date();
-    const camera = this.earth.getCamera();
-    const scaleFactor = this.earth.getRadius() / EARTH_RADIUS_KM;
+public updateSatellites(): void {
+  const now = new Date();
+  const camera = this.earth.getCamera();
+  const scaleFactor = this.earth.getRadius() / EARTH_RADIUS_KM;
+  const dummy = new Object3D();
 
-    for (const [id, marker] of this.markers.entries()) {
-      const data = this.satData.get(id);
-      if (!data) continue;
+  for (const id of this.visibleSatelliteIds) {
+    const meshData = this.instanceLookup.get(id);
+    const satData = this.allSatellitesData.find(s => s.norad_cat_id === id);
 
-      const posVel = satellite.propagate(data.satrec, now);
-      if (!posVel?.position) continue;
+    if (!meshData || !satData) continue;
 
-      const posScaled = new Vector3(
-        posVel.position.x * scaleFactor,
-        posVel.position.z * scaleFactor,
-        posVel.position.y * scaleFactor
-      );
-      marker.position.copy(posScaled);
+    const satrec = satellite.twoline2satrec(satData.tle_line_1, satData.tle_line_2);
+    const posVel = satellite.propagate(satrec, now);
+    if (!posVel?.position) continue;
 
-      if (!SceneManager.isPOV(posScaled, camera)) {
-        this.removeSatellite(id);
-      }
+    const posScaled = new Vector3(
+      posVel.position.x * scaleFactor,
+      posVel.position.y * scaleFactor,
+      posVel.position.z * scaleFactor
+    );
+
+    // Fuera del campo de visión → ocultar y continuar
+    if (!SceneManager.isPOV(posScaled, camera)) {
+      this.hideSatelliteInstance(id);
+      this.visibleSatelliteIds.delete(id);
+      this.hiddenSatelliteIds.add(id);
+      continue;
     }
 
-    if (this.allSatellitesData.length > 0) {
-      this.tryAddVisibleSatellites();
-    }
+    // Actualizar posición
+    dummy.position.copy(posScaled);
+    dummy.updateMatrix();
+
+    const { orbitType, index } = meshData;
+    this.instancedMeshes.get(orbitType)!.setMatrixAt(index, dummy.matrix);
+
+    this.propagatedPositions.set(id, posScaled);
   }
+
+  for (const mesh of this.instancedMeshes.values()) {
+    mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  if (this.allSatellitesData.length > 0) {
+    this.tryAddVisibleSatellites();
+  }
+}
+
+  private hideSatelliteInstance(id: string): void {
+    const instance = this.instanceLookup.get(id);
+    if (!instance) return;
+
+    const dummy = new Object3D();
+    dummy.position.setScalar(1e6); // moverlo fuera del frustum
+    dummy.updateMatrix();
+    this.instancedMeshes.get(instance.orbitType)!.setMatrixAt(instance.index, dummy.matrix);
+    this.instancedMeshes.get(instance.orbitType)!.instanceMatrix.needsUpdate = true;
+
+    // Opcional: puedes eliminarlo de instanceLookup para evitar actualizaciones futuras
+    this.instanceLookup.delete(id);
+  }
+
 
   public drawOrbit(id: string, tleLine1: string, tleLine2: string): Line | null {
     const existing = this.orbits.get(id);
@@ -369,18 +416,4 @@ private getOrbitTypeAndColor(positionEci: { x: number; y: number; z: number }): 
   }
 }
 
-  private setColorOnMesh(obj: Object3D, color: number, orbitType: string) {
-    obj.traverse(child => {
-      if (child instanceof Mesh) {
-        if (Array.isArray(child.material)) {
-          child.material.forEach(mat => {
-            (mat as MeshBasicMaterial).color.setHex(color);
-          });
-        } else {
-          (child.material as MeshBasicMaterial).color.setHex(color);
-        }
-        child.userData['orbitType'] = orbitType;
-      }
-    });
-  }
 }

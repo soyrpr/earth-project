@@ -20,6 +20,7 @@ export class SatellitesComponent implements OnInit {
   allSatellitesData: any[] | null = null;
   isSearching = false;
   selectedSatelliteId: number | null = null;
+  showSatelites = true;
 
   async ngOnInit(): Promise<void> {
     try {
@@ -120,4 +121,10 @@ async focusOnSatellite(sat: any): Promise<void> {
   SceneManager.showSatelliteInfo(mesh);
   this.selectedSatelliteId = Number(id);
 }
+
+  async toggleStarlinkFilter(): Promise<void> {
+    this.showSatelites = !this.showSatelites;
+    console.log('Filtro cambiado:', this.showSatelites);
+    SceneManager.satelliteManager?.loadSatellites(this.showSatelites);
+  }
 }

@@ -6,6 +6,9 @@
     (keyup.enter)="onSearch()"
   />
   <button (click)="onSearch()" [disabled]="searchStatus === 'loading'">Buscar</button>
+  <button (click)="toggleStarlinkFilter()">
+    {{ showSatelites ? 'Todos los satélites' : 'Sólo starlink'}}
+  </button>
 
   <div class="status-message" *ngIf="searchStatus === 'loading'">Buscando satélites...</div>
   <div class="status-message" *ngIf="searchStatus === 'not-found'">No se encontró ningún satélite con ese nombre.</div>
