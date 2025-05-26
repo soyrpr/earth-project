@@ -61,7 +61,7 @@ export class SceneManager {
     this.satelliteManager = new SatelliteManager(this.earth);
 
     // await this.loadStarlinkModel();
-    await this.satelliteManager.loadSatellites(true);
+    await this.satelliteManager.loadSatellites(false);
 
     window.addEventListener('click', this.onDocumentClick.bind(this));
     window.addEventListener('resize', this.onWindowResize.bind(this));
@@ -91,20 +91,11 @@ export class SceneManager {
     this.raycaster.near = 0.1;
     this.raycaster.far = 1000;
 
-    console.log('Raycaster ray:', {
-      origin: this.raycaster.ray.origin,
-      direction: this.raycaster.ray.direction
-    });
-
     const intersects = this.raycaster.intersectObject(instancedMesh);
-    console.log('Intersecciones encontradas:', intersects.length);
-    console.log('Posición del click:', this.pointer);
-    console.log('Posición de la cámara:', this.camera.position);
 
     if (intersects.length > 0) {
       const instanceId = intersects[0].instanceId;
       if (instanceId !== undefined) {
-        console.log('Click en satélite con instanceId:', instanceId);
         const satData = this.satelliteManager!.getSatelliteDataByInstancedId(instanceId);
         if (!satData) {
           console.log('No se encontraron datos para el satélite con instanceId:', instanceId);
@@ -118,21 +109,16 @@ export class SceneManager {
       }
     }
 
-    console.log('No se encontró satélite bajo el clic');
     this.hideSatelliteInfo();
   }
 
   public static showSatelliteInfoFromData(satData: any, instanceId: number): void {
     if (!satData) return;
 
-    console.log('Mostrando información del satélite:', satData);
-
-    // Calcular latitud y longitud
     const position = satData.position;
     const lat = Math.atan2(position.z, Math.sqrt(position.x * position.x + position.y * position.y));
     const lon = Math.atan2(position.y, position.x);
 
-    // Obtener el tipo de órbita y la altitud real
     const { orbitType } = this.satelliteManager!.getOrbitTypeAndColor(satData.position);
     const altitude = satData.altitude;
 
@@ -168,7 +154,6 @@ export class SceneManager {
                        document.getElementById('info-panel');
 
     if (infoElement) {
-      console.log('Elemento de información encontrado, actualizando contenido');
       infoElement.innerHTML = infoHtml;
       infoElement.style.display = 'block';
     } else {
@@ -225,7 +210,6 @@ export class SceneManager {
     const satId = satData.id || satData.norad_cat_id;
 
     if (tleLine1 && tleLine2 && satId) {
-      console.log('Dibujando órbita para satélite:', satId);
       const orbitLine = this.satelliteManager!.drawOrbit(
         satId,
         tleLine1,

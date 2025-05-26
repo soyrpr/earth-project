@@ -77,7 +77,6 @@ export class SatelliteManager {
     const quaternion = new Quaternion();
     const scale = new Vector3();
 
-    // Mapa para mantener la referencia entre índices combinados y datos originales
     const combinedToOriginalMap = new Map<number, { orbitType: string, originalIndex: number }>();
 
     for (const [orbitType, mesh] of this.instancedMeshes) {
@@ -103,8 +102,6 @@ export class SatelliteManager {
       const quaternion = new Quaternion();
       const scale = new Vector3();
 
-      console.log(`Raycasting ${totalInstances} instancias combinadas`);
-
       for (let i = 0; i < totalInstances; i++) {
         combinedMesh.getMatrixAt(i, matrix);
         matrix.decompose(position, quaternion, scale);
@@ -120,7 +117,6 @@ export class SatelliteManager {
               object: combinedMesh,
               userData: originalData // Añadimos los datos originales
             });
-            console.log(`Intersección encontrada con instancia ${i} (${originalData.orbitType}) a distancia ${distance}`);
           }
         }
       }
@@ -130,7 +126,6 @@ export class SatelliteManager {
   }
 
   public getSatelliteDataByInstancedId(index: number): SatelliteData | null {
-    // Buscamos en todos los tipos de órbita
     for (const [orbitType, _] of this.instancedMeshes) {
       const instanceCount = this.instanceIndexCounter.get(orbitType) || 0;
       if (index < instanceCount) {
@@ -166,7 +161,6 @@ export class SatelliteManager {
         matrix.decompose(position, quaternion, scale);
 
         const distance = raycaster.ray.distanceToPoint(position);
-        console.log(`Instance ${i} at position:`, position, 'distance:', distance);
 
         if (distance < 2) { // Aumentamos el radio de detección
           intersects.push({
@@ -175,7 +169,6 @@ export class SatelliteManager {
             instanceId: i,
             object: instancedMesh
           });
-          console.log(`Intersection found with instance ${i}`);
         }
       }
     };
@@ -261,52 +254,53 @@ export class SatelliteManager {
     this.instanceIndexCounter.set(orbitType, index + 1);
   }
 
-  public async loadSatellites(filterStarlinkOnly: boolean = true): Promise<void> {
+  public async loadSatellites(showAll: boolean = false): Promise<void> {
     const satellitesData = await loadAndMergeSatelliteData();
 
-    this.allSatellitesData = filterStarlinkOnly
-      ? satellitesData.filter(sat => (sat.info?.satname?.toLowerCase() ?? '').includes('starlink'))
-      : satellitesData;
+    this.allSatellitesData = showAll
+      ? satellitesData
+      : satellitesData.filter(sat => (sat.info?.satname?.toLowerCase() ?? '').includes('starlink'));
 
     this.startDynamicLoading();
   }
 
-  public async loadSatelliteById(id: string): Promise<Object3D | undefined> {
-    if (this.markers.has(id)) {
-      return this.markers.get(id);
-    }
-
-    const sat = this.allSatellitesData.find(s => s.norad_cat_id === id);
-    if (!sat) {
-      console.warn(`No se encontró satélite con ID ${id} en datos cargados.`);
-      return undefined;
-    }
-
-    try {
-      const name = sat.info?.satname ?? 'Unknown';
-      const orbital = sat.orbital ?? {};
-      const satrec = satellite.twoline2satrec(sat.tle_line_1, sat.tle_line_2);
-      const posVel = satellite.propagate(satrec, new Date());
-
-      if (!posVel?.position) return undefined;
-
-      const scaleFactor = this.earth.getRadius() / EARTH_RADIUS_KM;
-      const position = new Vector3(
-        posVel.position.x * scaleFactor,
-        posVel.position.z * scaleFactor,
-        posVel.position.y * scaleFactor
-      );
-
-      this.addSatellite(id, sat.tle_line_1, sat.tle_line_2, name, orbital, position);
-
-      await new Promise(r => setTimeout(r, 50));
-
-      return this.markers.get(id);
-    } catch (e) {
-      console.error(`Error al cargar satélite ${id}:`, e);
-      return undefined;
-    }
+public async loadSatelliteById(id: string): Promise<Object3D | undefined> {
+  if (this.markers.has(id)) {
+    return this.markers.get(id);
   }
+
+  const sat = this.allSatellitesData.find(s => s.norad_cat_id?.toString() === id.toString());
+  if (!sat) {
+    console.warn(`No se encontró satélite con ID ${id} en datos cargados.`);
+    return undefined;
+  }
+
+  try {
+    const name = sat.info?.satname ?? 'Unknown';
+    const orbital = sat.orbital ?? {};
+    const satrec = satellite.twoline2satrec(sat.tle_line_1, sat.tle_line_2);
+    const posVel = satellite.propagate(satrec, new Date());
+
+    if (!posVel?.position) return undefined;
+
+    const scaleFactor = this.earth.getRadius() / EARTH_RADIUS_KM;
+    const position = new Vector3(
+      posVel.position.x * scaleFactor,
+      posVel.position.y * scaleFactor,
+      posVel.position.z * scaleFactor
+    );
+
+    this.addSatellite(id, sat.tle_line_1, sat.tle_line_2, name, orbital, position);
+
+    // Espera mínimo para que renderice el nuevo objeto
+    await new Promise(r => setTimeout(r, 50));
+
+    return this.markers.get(id);
+  } catch (e) {
+    console.error(`Error al cargar satélite ${id}:`, e);
+    return undefined;
+  }
+}
 
   public getSatelliteMeshes(): Object3D[] {
     return Array.from(this.markers.values());
