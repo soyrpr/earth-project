@@ -1,7 +1,7 @@
 import { Component } from '@angular/core';
 import { GlobeComponent } from "./components/globe/globe.component";
 import { SatellitesComponent } from './components/satellites/satellites.component';
-import { TimeSliderComponent } from './time-slider/time-slider.component';
+import { TimeSliderComponent } from './components/time-slider/time-slider.component';
 
 @Component({
   selector: 'app-root',
