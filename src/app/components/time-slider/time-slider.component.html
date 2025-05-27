@@ -1,0 +1,12 @@
+<div class="time-container">
+  <div class="speed-controls">
+    <button (click)="setTimeSpeed(1)">1x</button>
+    <button (click)="setTimeSpeed(10)">10x</button>
+    <button (click)="setTimeSpeed(60)">60x</button>
+  </div>
+  <input type="range" min="-1440" max="1440" [(ngModel)]="minutesOffset" (input)="onTimeChange()"
+  (mouseup)="onSliderRelease()"
+  (touchend)="onSliderRelease()" />
+  <p>Hora simulada: {{ simulatedTime | date:'HH:mm:ss' }}</p>
+  <p>Velocidad: {{ timeSpeed }}x</p>
+</div>

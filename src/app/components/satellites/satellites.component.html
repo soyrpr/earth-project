@@ -6,6 +6,9 @@
     (keyup.enter)="onSearch()"
   />
   <button (click)="onSearch()" [disabled]="searchStatus === 'loading'">Buscar</button>
+  <button (click)="toggleStarlinkFilter()">
+    {{ showSatelites ? 'Sólo starlink' : 'Todos los satélites'}}
+  </button>
 
   <div class="status-message" *ngIf="searchStatus === 'loading'">Buscando satélites...</div>
   <div class="status-message" *ngIf="searchStatus === 'not-found'">No se encontró ningún satélite con ese nombre.</div>
@@ -15,11 +18,10 @@
     <p>Listado:</p>
     <ul>
       <li *ngFor="let sat of searchResults"
-          (click)="focusOnSatellite(sat.norad_cat_id)"
+          (click)="focusOnSatellite(sat)"
           [class.selected]="sat.norad_cat_id === selectedSatelliteId">
           {{ sat.info?.satname }} (ID: {{ sat.norad_cat_id }})
       </li>
     </ul>
   </div>
-
 </div>

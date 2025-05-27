@@ -10,11 +10,10 @@ import { SatellitesComponent } from "../satellites/satellites.component";
   selector: 'app-globe',
   templateUrl: './globe.component.html',
   styleUrls: ['./globe.component.css'],
-  standalone: true,  // Si usas standalone, asegúrate de ponerlo
   imports: [
     CommonModule,        // <-- importa CommonModule para usar *ngIf, *ngFor, etc.
     EarthComponent,
-    StarfieldComponent,
+    // StarfieldComponent,
   ]
 })
 export class GlobeComponent {

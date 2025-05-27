@@ -3,8 +3,6 @@ import { SceneManager } from '../../../core/scene.manager';
 import { loadAndMergeSatelliteData } from '../../../../data/data-loader';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Vector3 } from 'three';
-import { identifierName } from '@angular/compiler';
 
 @Component({
   selector: 'app-satellites',
@@ -17,107 +15,127 @@ export class SatellitesComponent implements OnInit {
   searchResults: any[] = [];
   searchStatus: 'idle' | 'loading' | 'not-found' | 'ready' | 'error' = 'idle';
   errorMessage = '';
-  allSatellitesData: any[] | null = null;
+  allSatellitesData: any[] = [];
   isSearching = false;
   selectedSatelliteId: number | null = null;
+  showSatelites = true;
+  visibleSatellitesData: any[] = [];
 
-  async ngOnInit(): Promise<void> {
-    try {
-      this.allSatellitesData = await loadAndMergeSatelliteData();
-    } catch (err) {
-      this.errorMessage = 'Error loading satellite data.';
-      this.searchStatus = 'error';
-      console.error(err);
-    }
+  ngOnInit(): void {
+    (async () => {
+      try {
+        this.allSatellitesData = await loadAndMergeSatelliteData() ?? [];
+      } catch (err) {
+        this.errorMessage = 'Error loading satellite data.';
+        this.searchStatus = 'error';
+        console.error(err);
+        this.allSatellitesData = [];
+      }
+
+  if (!this.showSatelites) {
+    this.visibleSatellitesData = this.allSatellitesData; // Todos
+  } else {
+    this.visibleSatellitesData = this.allSatellitesData.filter(sat =>
+      sat.info?.satname?.toLowerCase().includes('starlink')
+    );
+  }
+    })();
   }
 
   async onSearch() {
-    if (this.isSearching) return;
-    this.isSearching = true;
+    if (this.isSearching || !this.visibleSatellitesData) return;
 
+    this.isSearching = true;
     this.searchStatus = 'loading';
     this.errorMessage = '';
     this.searchResults = [];
 
     try {
-      const satManager = SceneManager.satelliteManager;
-      if (!satManager) {
-        this.searchStatus = 'error';
-        this.errorMessage = 'No se ha inicializado el gestor de satélites.';
-        return;
+      const query = this.searchText.trim().toLowerCase();
+
+      let filtered: any[];
+      if (query === '') {
+        filtered = this.visibleSatellitesData;
+      } else {
+        filtered = this.visibleSatellitesData.filter((sat: any) =>
+          (sat.info?.satname ?? '').toLowerCase().includes(query)
+        );
       }
-
-      const meshes = satManager.getSatelliteMeshes();
-      const sats = meshes.map((m: any) => ({
-        norad_cat_id: m.userData['id'],
-        tle_line_1: m.userData['tle_line_1'],
-        tle_line_2: m.userData['tle_line_2'],
-        info: { satname: m.userData['name'] }
-      }));
-
-      const filtered = sats.filter(sat =>
-        (sat.info?.satname ?? '').toLowerCase().includes(this.searchText.toLowerCase())
-      );
 
       if (filtered.length === 0) {
         this.searchStatus = 'not-found';
-        return;
       }
 
       this.searchResults = filtered;
       this.searchStatus = 'ready';
-
-      // await this.focusOnSatellite(filtered[0]);
-
     } catch (err) {
-      this.searchStatus = 'error';
-      this.errorMessage = 'Error al buscar satélites.';
       console.error(err);
+      this.searchStatus = 'error';
+      this.errorMessage = 'Error al buscar satélites. Por favor, inténtelo de nuevo más tarde.';
     } finally {
       this.isSearching = false;
     }
   }
 
-async focusOnSatellite(sat: any): Promise<void> {
-  console.log('focusOnSatellite recibido:', sat);
+  async focusOnSatellite(sat: any): Promise<void> {
+    let id: string | undefined;
 
-  let id: string | undefined;
+    if (typeof sat === 'string') {
+      id = sat.trim();
+    } else if (typeof sat === 'object' && sat !== null) {
+      id = sat.norad_cat_id?.toString().trim() ?? sat.id?.toString();
+    }
 
-  if (typeof sat === 'string') {
-    id = sat.trim();
-  } else if (typeof sat === 'object' && sat !== null) {
-    id = sat.norad_cat_id?.trim() ?? sat.id?.toString();
+    if (!id) {
+      this.errorMessage = 'No se pudo obtener ID válido del satélite seleccionado.';
+      this.searchStatus = 'error';
+      return;
+    }
+
+    const satManager = SceneManager.satelliteManager;
+    if (!satManager) return;
+
+    let mesh = satManager.getSatelliteMeshes().find((m: any) => String(m.userData['id']) === id);
+
+    if (!mesh) {
+      // No está cargado, intenta cargarlo ahora
+      mesh = await satManager.loadSatelliteById(id);
+
+      if (!mesh) {
+        this.errorMessage = `El satélite ${id} no está presente ni pudo cargarse.`;
+        this.searchStatus = 'error';
+        return;
+      }
+    }
+
+    if (!mesh.userData['tleLine1'] || !mesh.userData['tleLine2']) {
+      this.errorMessage = `El satélite ${id} no tiene datos de órbita (TLE).`;
+      this.searchStatus = 'error';
+      return;
+    }
+
+    SceneManager.focusCameraOnSatelliteById(id);
+    SceneManager.showSatelliteInfoFromData(mesh.userData, mesh.userData['id']);
+    this.selectedSatelliteId = Number(id);
   }
 
-  console.log('ID usado para buscar satélite:', id);
+  async toggleStarlinkFilter(): Promise<void> {
+    this.showSatelites = !this.showSatelites;
+    console.log('Filtro cambiado:', this.showSatelites);
 
-  if (!id) {
-    this.errorMessage = 'No se pudo obtener ID válido del satélite seleccionado.';
-    this.searchStatus = 'error';
-    return;
+    // Como showSatelites = true es mostrar todos, pasamos su valor directo
+    await SceneManager.satelliteManager?.loadSatellites(this.showSatelites);
+
+    if (this.showSatelites) {
+      this.visibleSatellitesData = this.allSatellitesData; // Todos
+    } else {
+      this.visibleSatellitesData = this.allSatellitesData.filter(sat =>
+        sat.info?.satname?.toLowerCase().includes('starlink')
+      );
+    }
+
+    if (this.searchText.trim() !== '') {
+      await this.onSearch();
+    }
   }
-
-  const satManager = SceneManager.satelliteManager;
-  if (!satManager) return;
-
-  const mesh = satManager.getSatelliteMeshes().find((m: any) => m.userData['id'] === id);
-
-  if (!mesh) {
-    console.error(`El satélite ${id} no está cargado en la escena.`);
-    this.errorMessage = `El satélite ${id} no está presente en la visualización.`;
-    this.searchStatus = 'error';
-    return;
-  }
-
-  // Ahora sí puedes hacer lo que necesites con el satélite cargado
-  if (!mesh.userData['tleLine1'] || !mesh.userData['tleLine2']) {
-    this.errorMessage = `El satélite ${id} no tiene datos de órbita (TLE).`;
-    this.searchStatus = 'error';
-    return;
-  }
-
-  SceneManager.focusCameraOnSatelliteById(id);
-  SceneManager.showSatelliteInfo(mesh);
-  this.selectedSatelliteId = Number(id);
-}
 }
