@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { SceneManager } from '../../core/scene.manager';
+import { SceneManager } from '../../../core/scene.manager';
 
 @Component({
   selector: 'app-time-slider',

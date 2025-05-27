@@ -11,14 +11,12 @@ import {
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { Earth } from "./earth";
 import { SatelliteManager } from "./satellite";
-import { Starfield } from "./starfield";
 import { GLTFLoader, RenderPass, UnrealBloomPass } from "three/examples/jsm/Addons.js";
 import { RendererManager } from './renderer.manager'; // Ajusta la ruta según tu estructura
 
 export class SceneManager {
   private static _scene: Scene | null = null;
   private static _camera: PerspectiveCamera | null = null;
-  private static starfield: Starfield | null = null;
   public static earth: Earth | null = null;
   public static satelliteManager: SatelliteManager | null = null;
   public static composer: EffectComposer | null = null;
@@ -58,7 +56,6 @@ export class SceneManager {
     this.createCamera();
     this.createLights();
 
-    this.starfield = new Starfield(this.scene);
     this.earth = new Earth(this.camera, this.scene);
     this.satelliteManager = new SatelliteManager(this.earth);
 
