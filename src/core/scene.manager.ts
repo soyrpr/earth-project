@@ -38,6 +38,9 @@ export class SceneManager {
 
   static modelsByName: Map<string, Object3D> = new Map();
 
+  private static simulationStartTime: Date = new Date();
+  private static simulationMinutesOffset: number = 0;
+
   public static get scene(): Scene {
     if (!this._scene) throw new Error("SceneManager.scene no está inicializado");
     return this._scene;
@@ -363,4 +366,5 @@ export class SceneManager {
     const direction = value >= 0 ? posDir : negDir;
     return `${degrees}° ${minutes.toFixed(2)}' ${direction}`;
   }
+
 }
