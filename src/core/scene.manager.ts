@@ -38,8 +38,7 @@ export class SceneManager {
 
   static modelsByName: Map<string, Object3D> = new Map();
 
-  private static simulationStartTime: Date = new Date();
-  private static simulationMinutesOffset: number = 0;
+  private static selectedSatellitePosition: Vector3 | null = null;
 
   public static get scene(): Scene {
     if (!this._scene) throw new Error("SceneManager.scene no está inicializado");
@@ -106,8 +105,16 @@ export class SceneManager {
           return;
         }
 
-        console.log('Datos del satélite encontrado:', satData);
+        const matrix = new Matrix4();
+        instancedMesh.getMatrixAt(instanceId, matrix);
+
+        const position = new Vector3();
+        position.setFromMatrixPosition(matrix);
+
+        this.selectedSatellitePosition = position;
         this.showSatelliteInfoFromData(satData, instanceId);
+
+        console.log('Datos del satélite encontrado:', satData);
         return;
       }
     }
@@ -133,25 +140,34 @@ export class SceneManager {
       return 'N/A';
     };
 
-    const info = {
+    const info: Record<string, string> = {
       'Nombre': satData.name,
       'ID': satData.id,
       'Tipo de Órbita': orbitType,
       'Altitud': `${formatNumber(altitude)} km`,
       'Latitud': this.formatCoordinate(lat * (180 / Math.PI), 'N', 'S'),
       'Longitud': this.formatCoordinate(lon * (180 / Math.PI), 'E', 'W'),
-      'Velocidad Orbital': satData.orbital?.velocity ? `${formatNumber(satData.orbital.velocity)} km/s` : 'N/A',
-      'Período': satData.orbital?.period ? `${formatNumber(satData.orbital.period)} min` : 'N/A',
-      'Inclinación': satData.orbital?.inclination ? `${formatNumber(satData.orbital.inclination)}°` : 'N/A',
-      'Apogeo': satData.orbital?.apogee ? `${formatNumber(satData.orbital.apogee)} km` : 'N/A',
-      'Perigeo': satData.orbital?.perigee ? `${formatNumber(satData.orbital.perigee)} km` : 'N/A'
     };
+    if (satData.orbital?.velocity != null) {
+      info['Velocidad Orbital'] = `${formatNumber(satData.orbital.velocity)} km/s`;
+    }
+    if (satData.orbital?.period != null) {
+      info['Período'] = `${formatNumber(satData.orbital.period)} min`;
+    }
+    if (satData.orbital?.inclination != null) {
+      info['Inclinación'] = `${formatNumber(satData.orbital.inclination)}°`;
+    }
+    if (satData.orbital?.apogee != null) {
+      info['Apogeo'] = `${formatNumber(satData.orbital.apogee)} km`;
+    }
+    if (satData.orbital?.perigee != null) {
+      info['Perigeo'] = `${formatNumber(satData.orbital.perigee)} km`;
+    }
 
     const infoHtml = Object.entries(info)
       .map(([key, value]) => `<div><strong>${key}:</strong> ${value}</div>`)
       .join('');
 
-    // Intentar encontrar el elemento por diferentes IDs posibles
     const infoElement = document.getElementById('satellite-info') ||
                        document.getElementById('satellite-info-box') ||
                        document.getElementById('info-panel');
@@ -161,7 +177,7 @@ export class SceneManager {
       infoElement.style.display = 'block';
     } else {
       console.error('No se encontró el elemento para mostrar la información del satélite');
-      // Crear el elemento si no existe
+
       const newInfoElement = document.createElement('div');
       newInfoElement.id = 'satellite-info';
       newInfoElement.style.position = 'absolute';
@@ -177,7 +193,6 @@ export class SceneManager {
       document.body.appendChild(newInfoElement);
     }
 
-    // Limpiar líneas anteriores
     if (this.selectedOrbitLine) {
       this.selectedOrbitLine.geometry.dispose();
       (this.selectedOrbitLine.material as MeshBasicMaterial).dispose();
@@ -192,22 +207,20 @@ export class SceneManager {
       this.selectedConnectionLine = null;
     }
 
-    // Crear línea de conexión al centro
     const points = [
-      new Vector3(0, 0, 0),  // Centro de la Tierra
-      position.clone()       // Posición del satélite
+      new Vector3(0, 0, 0),
+      position.clone()
     ];
     const geometry = new BufferGeometry().setFromPoints(points);
     const material = new LineBasicMaterial({
-      color: 0x00ff00,  // Color verde
-      linewidth: 2,
+      color: 0xff0000,
+      linewidth: 4,
       transparent: true,
       opacity: 0.5
     });
     this.selectedConnectionLine = new Line(geometry, material);
     this.scene.add(this.selectedConnectionLine);
 
-    // Dibujar nueva órbita
     const tleLine1 = satData.tleLine1 || satData.tle_line_1;
     const tleLine2 = satData.tleLine2 || satData.tle_line_2;
     const satId = satData.id || satData.norad_cat_id;
@@ -289,7 +302,20 @@ export class SceneManager {
   }
 
   public static update(): void {
-    this.satelliteManager?.updateSatellites();
+    if (this.selectedSatellite) {
+      this.selectedSatellitePosition = this.selectedSatellite.position.clone();
+    }
+
+    if (this.selectedConnectionLine && this.selectedConnectionLine.geometry && this.selectedSatellitePosition) {
+      const positionAttributes = this.selectedConnectionLine.geometry.attributes['position'];
+      positionAttributes.setXYZ(1,
+        this.selectedSatellitePosition.x,
+        this.selectedSatellitePosition.y,
+        this.selectedSatellitePosition.z
+      );
+      positionAttributes.needsUpdate = true;
+      this.selectedConnectionLine.geometry.computeBoundingSphere();
+    }
   }
 
   public static render(): void {

@@ -14,7 +14,7 @@ import { SatellitesComponent } from "../satellites/satellites.component";
   imports: [
     CommonModule,        // <-- importa CommonModule para usar *ngIf, *ngFor, etc.
     EarthComponent,
-    StarfieldComponent,
+    // StarfieldComponent,
   ]
 })
 export class GlobeComponent {
