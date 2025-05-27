@@ -11,9 +11,9 @@ export class Earth {
 
   constructor(
     private readonly camera: PerspectiveCamera,
-    private readonly scene: Scene  // <-- necesitas pasar el Scene aquí
+    private readonly scene: Scene
   ) {
-    this.markerGeometry = new SphereGeometry(0.2, 8, 8);  // reutilizables
+    this.markerGeometry = new SphereGeometry(0.2, 8, 8);
     this.markerMaterial = new MeshBasicMaterial({ color: 0xffffff });
   }
 

@@ -381,15 +381,12 @@ public async loadSatelliteById(id: string): Promise<Object3D | undefined> {
     const cameraPosition = camera.position.clone();
     const dummy = new Object3D();
 
-    // Actualizar clusters
     this.updateClusters();
 
-    // Actualizar posiciones de satélites
     for (const [id, position] of this.propagatedPositions) {
       const distance = position.distanceTo(cameraPosition);
       const lodLevel = this.getLODLevel(distance);
 
-      // Si está muy lejos, usar el cluster
       if (lodLevel < 0.5) {
         const clusterId = Array.from(this.clusters.entries())
           .find(([_, satellites]) => satellites.has(id))?.[0];
@@ -641,7 +638,6 @@ public async loadSatelliteById(id: string): Promise<Object3D | undefined> {
   public simulateSatellitesAtTime(simTime: Date): void {
     const dummy = new Object3D();
 
-    // Actualizar posiciones de todos los satélites
     this.satelliteDataArray.forEach(sat => {
       const position = this.calculatePositionAtTime(sat, simTime);
       this.propagatedPositions.set(sat.id, position);
@@ -658,7 +654,6 @@ public async loadSatelliteById(id: string): Promise<Object3D | undefined> {
       }
     });
 
-    // Actualizar todas las matrices de instancia
     for (const mesh of this.instancedMeshes.values()) {
       mesh.instanceMatrix.needsUpdate = true;
     }

@@ -67,10 +67,6 @@ export class TimeSliderComponent {
     this.lastUpdateTime = Date.now();
   }
 
-  onAccelerate() {
-    throw new Error('Method not implemented.');
-    }
-
   setTimeSpeed(speed: number) {
     this.timeSpeed = speed;
     this.lastUpdateTime = Date.now();

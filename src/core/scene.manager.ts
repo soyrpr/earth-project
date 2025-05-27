@@ -321,7 +321,6 @@ export class SceneManager {
     let satObj = this.satelliteManager.getSatelliteMeshes().find((m: Object3D) => m.userData['id'] === id);
 
     if (!satObj) {
-      // No está cargado: intenta cargarlo
       satObj = await this.satelliteManager.loadSatelliteById(id);
     }
 
