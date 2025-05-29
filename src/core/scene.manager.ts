@@ -30,6 +30,7 @@ export class SceneManager {
   private static selectedConnectionLine: Line | null = null;
 
   private static initialized = false;
+  static isSelectingFromSearch = false;
 
   private static frustum = new Frustum();
   private static cameraViewProjectionMatrix = new Matrix4();
@@ -60,10 +61,10 @@ export class SceneManager {
     this.satelliteManager = new SatelliteManager(this.earth);
 
     // await this.loadStarlinkModel();
-    await this.satelliteManager.loadSatellites(false);
+    await this.satelliteManager.loadSatellites(true);
 
-    window.addEventListener('click', this.onDocumentClick.bind(this));
-    window.addEventListener('resize', this.onWindowResize.bind(this));
+     window.addEventListener('click', this.onDocumentClick.bind(this));
+     window.addEventListener('resize', this.onWindowResize.bind(this));
   }
 
   private static onWindowResize(): void {
@@ -86,9 +87,8 @@ export class SceneManager {
       return;
     }
 
-    // Configuración del raycaster
     this.raycaster.near = 0.1;
-    this.raycaster.far = 1000;
+    this.raycaster.far = 500;
 
     const intersects = this.raycaster.intersectObject(instancedMesh);
 
@@ -121,7 +121,6 @@ export class SceneManager {
 
   public static showSatelliteInfoFromData(satData: any, instanceId: number): void {
     if (!satData) return;
-
     const position = satData.position;
     const lat = Math.atan2(position.z, Math.sqrt(position.x * position.x + position.y * position.y));
     const lon = Math.atan2(position.y, position.x);
@@ -129,7 +128,6 @@ export class SceneManager {
     const { orbitType } = this.satelliteManager!.getOrbitTypeAndColor(satData.position);
     const altitude = satData.altitude;
 
-    // Función auxiliar para formatear números
     const formatNumber = (value: any, decimals: number = 2): string => {
       if (typeof value === 'number') {
         return value.toFixed(decimals);
@@ -319,24 +317,48 @@ export class SceneManager {
     this.composer?.render();
   }
 
-  static focusCameraOn(targetPosition: Vector3): void {
-    if (!this.camera) return;
+static focusCameraOn(targetPosition: Vector3, selectedSatellite?: Object3D): void {
+  if (!this.camera) return;
 
-    // Define un offset para la cámara (por ejemplo, 50 unidades en Z)
-    const cameraOffset = new Vector3(0, 0, 50);
+  // Restaurar color del satélite previamente seleccionado
+  if (this.selectedSatellite && this.selectedSatellite !== selectedSatellite) {
+  }
 
-    // Nueva posición de la cámara = posición objetivo + offset
-    const newCameraPos = targetPosition.clone().add(cameraOffset);
+  this.selectedSatellite = selectedSatellite || null;
 
-    // Mueve la cámara a esa nueva posición
-    this.camera.position.copy(newCameraPos);
-
-    // Actualiza el target de los controles OrbitControls para que mire a targetPosition
-    if (RendererManager.controls) {
-      RendererManager.controls.target.copy(targetPosition);
-      RendererManager.controls.update();
+  // Cambiar color del satélite actual a azul
+  if (this.selectedSatellite) {
+    const mesh = this.selectedSatellite as any;
+    if (mesh.material) {
+      if (Array.isArray(mesh.material)) {
+        mesh.material.forEach((mat: any) => mat.color.set(0x0000ff));
+      } else {
+        mesh.material.color.set(0x0000ff);
+      }
     }
   }
+
+  // Definir distancia de la cámara respecto al satélite (ajusta según prefieras)
+  const distanceFromSatellite = 30;
+
+  // Vector desde la Tierra hacia el satélite
+  const dirSatelliteFromEarth = targetPosition.clone().normalize();
+
+  // Posicionar la cámara a cierta distancia DELANTE del satélite, en dirección contraria a la Tierra
+  // O sea, cámara queda a distanciaFromSatellite * alejándose del centro, pero mirando al centro
+  const cameraPosition = targetPosition.clone().add(dirSatelliteFromEarth.clone().multiplyScalar(distanceFromSatellite));
+
+  this.camera.position.copy(cameraPosition);
+
+  // La cámara siempre mira al centro de la Tierra
+  this.camera.lookAt(0, 0, 0);
+
+  // Actualizar controles si existen
+  if (RendererManager.controls) {
+    RendererManager.controls.target.set(0, 0, 0);
+    RendererManager.controls.update();
+  }
+}
 
   public static async focusCameraOnSatelliteById(id: string): Promise<void> {
     if (!this.satelliteManager) return;

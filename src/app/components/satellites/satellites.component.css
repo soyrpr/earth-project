@@ -20,10 +20,17 @@
 }
 
 .search-container button {
-  padding: 6px 12px;
   font-size: 14px;
   cursor: pointer;
   margin-bottom: 8px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  background: #444;
+  color: white;
+  border: none;
+  cursor: pointer;
+  font-size: 0.8rem;
+
 }
 
 .status-message {
@@ -71,4 +78,37 @@
   background-color: goldenrod;
   font-weight: bold;
   color: black;
+}
+
+.filter-section {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 0.9rem;
+}
+
+.filter-group label {
+  font-weight: bold;
+  margin-right: 5px;
+}
+
+.filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.filter-group button {
+  padding: 4px 8px;
+  border-radius: 5px;
+  background: #444;
+  color: white;
+  border: none;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.filter-group button.active {
+  background-color: #007bff;
 }

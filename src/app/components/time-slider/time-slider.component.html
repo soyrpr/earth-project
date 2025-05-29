@@ -1,12 +1,45 @@
-<div class="time-container">
-  <div class="speed-controls">
-    <button (click)="setTimeSpeed(1)">1x</button>
-    <button (click)="setTimeSpeed(10)">10x</button>
-    <button (click)="setTimeSpeed(60)">60x</button>
+<div class="time-slider">
+  <div class="content-wrapper">
+    <p><strong>Hora de la simulación:</strong> {{ simulatedTime | date: 'medium' }}</p>
+
+    <label for="datetimePicker">Cambiar fecha y hora determinada:</label>
+    <input
+      id="datetimePicker"
+      type="datetime-local"
+      [value]="getDatetimeLocalValue()"
+      (change)="onDateTimeChange($event)"
+    />
+
+    <label for="timeSlider">Ajustar minutos desde inicio:</label>
+    <input
+      id="timeSlider"
+      type="range"
+      min="-1440"
+      max="1440"
+      [(ngModel)]="minutesOffset"
+      (input)="onTimeChange()"
+      (change)="onSliderRelease()"
+    />
+
+    <p>Velocidad de simulación:</p>
+    <div class="speed-controls">
+      <input
+        type="range"
+        min="1"
+        max="1000"
+        [(ngModel)]="speedAmount"
+        (input)="onSpeedChange()"
+      />
+      <select [(ngModel)]="speedUnit" (change)="onSpeedChange()">
+        <option value="seconds">Segundos</option>
+        <option value="minutes">Minutos</option>
+        <option value="hours">Horas</option>
+        <option value="days">Días</option>
+        <option value="weeks">Semanas</option>
+        <option value="months">Meses</option>
+        <option value="years">Años</option>
+      </select>
+      <span>{{ speedAmount }} {{ speedUnit }}</span>
+    </div>
   </div>
-  <input type="range" min="-1440" max="1440" [(ngModel)]="minutesOffset" (input)="onTimeChange()"
-  (mouseup)="onSliderRelease()"
-  (touchend)="onSliderRelease()" />
-  <p>Hora simulada: {{ simulatedTime | date:'HH:mm:ss' }}</p>
-  <p>Velocidad: {{ timeSpeed }}x</p>
 </div>

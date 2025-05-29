@@ -1,36 +1,95 @@
-.time-container {
-  position: absolute;
-  bottom: 20px;
-  right: 20px;
+.time-slider {
+  background: #222;
+  color: #eee;
+  padding: 12px 20px;
+  border-radius: 8px 8px 0 0;
+  width: 100vw;
+  box-sizing: border-box;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  user-select: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  background-color: rgba(255, 255, 255, 0.9);
-  padding: 12px;
-  border-radius: 8px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-  max-width: 230px;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.time-slider .content-wrapper {
+  width: 100%;
+  max-width: 1000px;
+}
+
+.time-slider p {
+  font-weight: 600;
+  font-size: 1em;
+  margin: 8px 0;
+}
+
+.time-slider label {
+  display: block;
+  font-size: 0.95em;
+  margin-top: 12px;
+  margin-bottom: 4px;
+}
+
+.time-slider input[type="range"] {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.time-slider input[type="datetime-local"] {
+  width: 100%;
+  padding: 5px 8px;
+  border-radius: 4px;
+  border: none;
+  font-size: 1em;
+  background: #444;
+  color: #eee;
 }
 
 .speed-controls {
   display: flex;
-  gap: 5px;
-  margin-bottom: 10px;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
 }
 
-.speed-controls button {
-  padding: 5px 10px;
-  border: 1px solid #ccc;
+.speed-controls input[type="range"] {
+  flex: 1 1 auto;
+  max-width: 150px;
+}
+
+.speed-controls select {
+  padding: 4px 6px;
+  font-size: 0.9em;
   border-radius: 4px;
-  background: white;
+  border: none;
+  background: #444;
+  color: #eee;
+}
+
+.speed-controls span {
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+
+.time-slider button {
+  background-color: #333;
+  border: none;
+  color: #eee;
+  padding: 4px 10px;
+  font-size: 0.75em;
+  border-radius: 4px;
   cursor: pointer;
+  transition: background-color 0.2s ease;
 }
 
-.speed-controls button:hover {
-  background: #f0f0f0;
+.time-slider button:hover {
+  background-color: #555;
 }
 
-input[type="range"] {
-  width: 100%;
-  margin: 10px 0;
+.time-slider button:active {
+  background-color: #777;
 }

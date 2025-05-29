@@ -1,4 +1,4 @@
-<div class="search-container">
+<div class="search-container" (click)="$event.stopPropagation()">
   <input
     type="text"
     placeholder="Buscar satélite por nombre..."
@@ -10,6 +10,36 @@
     {{ showSatelites ? 'Sólo starlink' : 'Todos los satélites'}}
   </button>
 
+  <!-- Filtros adicionales -->
+  <div class="filter-section">
+    <div class="filter-group">
+      <label>Órbita:</label>
+      <button *ngFor="let orbit of orbitTypes"
+              (click)="toggleOrbitType(orbit)"
+              [class.active]="selectedOrbitType === orbit">
+        {{ orbit }}
+      </button>
+    </div>
+
+    <div class="filter-group">
+      <label>Tipo:</label>
+      <button *ngFor="let type of specialTypes"
+              (click)="toggleSpecialType(type)"
+              [class.active]="selectedSpecialType === type">
+        {{ type }}
+      </button>
+    </div>
+
+    <div class="filter-group">
+      <label>Clase:</label>
+      <button *ngFor="let cat of categories"
+              (click)="toggleCategory(cat)"
+              [class.active]="selectedCategory === cat">
+        {{ cat === 'satellite' ? 'Satélite' : 'Basura' }}
+      </button>
+    </div>
+  </div>
+
   <div class="status-message" *ngIf="searchStatus === 'loading'">Buscando satélites...</div>
   <div class="status-message" *ngIf="searchStatus === 'not-found'">No se encontró ningún satélite con ese nombre.</div>
   <div class="status-message" *ngIf="searchStatus === 'error'">{{ errorMessage }}</div>
@@ -17,7 +47,7 @@
   <div *ngIf="searchResults.length > 0 && searchStatus === 'ready'" class="results-list">
     <p>Listado:</p>
     <ul>
-      <li *ngFor="let sat of searchResults"
+      <li *ngFor="let sat of filteredResults"
           (click)="focusOnSatellite(sat)"
           [class.selected]="sat.norad_cat_id === selectedSatelliteId">
           {{ sat.info?.satname }} (ID: {{ sat.norad_cat_id }})
