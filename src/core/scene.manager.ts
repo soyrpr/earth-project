@@ -320,13 +320,11 @@ export class SceneManager {
 static focusCameraOn(targetPosition: Vector3, selectedSatellite?: Object3D): void {
   if (!this.camera) return;
 
-  // Restaurar color del satélite previamente seleccionado
   if (this.selectedSatellite && this.selectedSatellite !== selectedSatellite) {
   }
 
   this.selectedSatellite = selectedSatellite || null;
 
-  // Cambiar color del satélite actual a azul
   if (this.selectedSatellite) {
     const mesh = this.selectedSatellite as any;
     if (mesh.material) {
@@ -338,22 +336,14 @@ static focusCameraOn(targetPosition: Vector3, selectedSatellite?: Object3D): voi
     }
   }
 
-  // Definir distancia de la cámara respecto al satélite (ajusta según prefieras)
   const distanceFromSatellite = 30;
 
-  // Vector desde la Tierra hacia el satélite
   const dirSatelliteFromEarth = targetPosition.clone().normalize();
 
-  // Posicionar la cámara a cierta distancia DELANTE del satélite, en dirección contraria a la Tierra
-  // O sea, cámara queda a distanciaFromSatellite * alejándose del centro, pero mirando al centro
   const cameraPosition = targetPosition.clone().add(dirSatelliteFromEarth.clone().multiplyScalar(distanceFromSatellite));
 
   this.camera.position.copy(cameraPosition);
 
-  // La cámara siempre mira al centro de la Tierra
-  this.camera.lookAt(0, 0, 0);
-
-  // Actualizar controles si existen
   if (RendererManager.controls) {
     RendererManager.controls.target.set(0, 0, 0);
     RendererManager.controls.update();

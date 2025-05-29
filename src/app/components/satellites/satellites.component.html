@@ -6,11 +6,7 @@
     (keyup.enter)="onSearch()"
   />
   <button (click)="onSearch()" [disabled]="searchStatus === 'loading'">Buscar</button>
-  <button (click)="toggleStarlinkFilter()">
-    {{ showSatelites ? 'Sólo starlink' : 'Todos los satélites'}}
-  </button>
 
-  <!-- Filtros adicionales -->
   <div class="filter-section">
     <div class="filter-group">
       <label>Órbita:</label>

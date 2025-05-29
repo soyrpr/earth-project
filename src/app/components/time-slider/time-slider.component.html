@@ -1,8 +1,14 @@
-<div class="time-slider">
-  <div class="content-wrapper">
-    <p><strong>Hora de la simulación:</strong> {{ simulatedTime | date: 'medium' }}</p>
+<div class="time-slider-toggle" (click)="$event.stopPropagation()">
+  <button (click)="toggleControls()">
+    {{ showControls ? 'Ocultar Control de Tiempo' : 'Mostrar Control de Tiempo' }}
+  </button>
+</div>
 
-    <label for="datetimePicker">Cambiar fecha y hora determinada:</label>
+<div class="time-slider" *ngIf="showControls" (click)="$event.stopPropagation()">
+  <div class="content-wrapper">
+    <p><strong>Hora simulada:</strong> {{ simulatedTime | date: 'medium' }}</p>
+
+    <label for="datetimePicker">Seleccionar fecha y hora:</label>
     <input
       id="datetimePicker"
       type="datetime-local"
@@ -10,23 +16,12 @@
       (change)="onDateTimeChange($event)"
     />
 
-    <label for="timeSlider">Ajustar minutos desde inicio:</label>
-    <input
-      id="timeSlider"
-      type="range"
-      min="-1440"
-      max="1440"
-      [(ngModel)]="minutesOffset"
-      (input)="onTimeChange()"
-      (change)="onSliderRelease()"
-    />
-
     <p>Velocidad de simulación:</p>
     <div class="speed-controls">
       <input
         type="range"
-        min="1"
-        max="1000"
+        [min]="1"
+        [max]="getMaxForUnit(speedUnit)"
         [(ngModel)]="speedAmount"
         (input)="onSpeedChange()"
       />
@@ -35,11 +30,17 @@
         <option value="minutes">Minutos</option>
         <option value="hours">Horas</option>
         <option value="days">Días</option>
-        <option value="weeks">Semanas</option>
-        <option value="months">Meses</option>
-        <option value="years">Años</option>
       </select>
-      <span>{{ speedAmount }} {{ speedUnit }}</span>
+      <span>{{ getFormattedSpeed() }}</span>
+    </div>
+
+    <div class="controls">
+      <button (click)="toggleSimulation()">
+        {{ isSimulating ? 'Pausar' : 'Reanudar' }}
+      </button>
+      <button (click)="toggleDirection()">
+        {{ timeDirection === 1 ? 'Ir atrás en el tiempo' : 'Ir adelante en el tiempo' }}
+      </button>
     </div>
   </div>
 </div>

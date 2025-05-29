@@ -21,8 +21,8 @@ export class SatellitesComponent implements OnInit {
   showSatelites = true;
   visibleSatellitesData: any[] = [];
 
-  orbitTypes = ['LEO', 'MEO', 'GEO', 'Otro'];
-  specialTypes = ['Starlink', 'Galileo']; // ajusta según tus datos
+  orbitTypes = ['LEO', 'MEO', 'GEO'];
+  specialTypes = ['Starlink', 'Galileo'];
   categories = ['satellite', 'debris'];
   selectedOrbitType: string | null = null;
   selectedSpecialType: string | null = null;
@@ -40,7 +40,7 @@ export class SatellitesComponent implements OnInit {
       }
 
   if (this.showSatelites) {
-    this.visibleSatellitesData = this.allSatellitesData; // Todos
+    this.visibleSatellitesData = this.allSatellitesData;
   } else {
     this.visibleSatellitesData = this.allSatellitesData.filter(sat =>
       sat.info?.satname?.toLowerCase().includes('starlink')
@@ -60,21 +60,40 @@ export class SatellitesComponent implements OnInit {
     try {
       const query = this.searchText.trim().toLowerCase();
 
-      let filtered: any[];
-      if (query === '') {
-        filtered = this.visibleSatellitesData;
-      } else {
-        filtered = this.visibleSatellitesData.filter((sat: any) =>
-          (sat.info?.satname ?? '').toLowerCase().includes(query)
-        );
-      }
+      let filtered = query === ''
+        ? this.visibleSatellitesData
+        : this.visibleSatellitesData.filter((sat: any) =>
+            (sat.info?.satname ?? '').toLowerCase().includes(query)
+          );
+
+      filtered = filtered.filter(sat => {
+        const name = (sat.info?.satname || '').toUpperCase();
+        const orbitType = sat.orbital?.orbitType || '';
+        const category = sat.info?.category || '';
+
+        const matchesSpecial =
+          !this.selectedSpecialType ||
+          (this.selectedSpecialType === 'Starlink' && name.includes('STARLINK')) ||
+          (this.selectedSpecialType === 'Galileo' && name.includes('GALILEO'));
+
+        if (this.selectedSpecialType) {
+          // Si hay filtro especial, solo filtra por nombre (Starlink o Galileo) y no por órbita ni categoría
+          return matchesSpecial;
+        } else {
+          // Si no hay filtro especial, filtra por órbita y categoría
+          const matchesOrbit = !this.selectedOrbitType || orbitType === this.selectedOrbitType;
+          const matchesCategory = !this.selectedCategory || category === this.selectedCategory;
+          return matchesOrbit && matchesCategory;
+        }
+      });
 
       if (filtered.length === 0) {
         this.searchStatus = 'not-found';
+      } else {
+        this.searchStatus = 'ready';
       }
 
       this.searchResults = filtered;
-      this.searchStatus = 'ready';
     } catch (err) {
       console.error(err);
       this.searchStatus = 'error';
@@ -115,14 +134,17 @@ async focusOnSatellite(sat: any): Promise<void> {
     }
   }
 
-  // Asegurarse de que el userData esté completo
-  if (sat.info) mesh.userData['info'] = sat.info;
+  if (sat.info) {
+    mesh.userData['info'] = sat.info;
+    if (sat.info.satname) {
+      mesh.userData['name'] = sat.info.satname;
+    }
+  }
   if (sat.tle) {
     mesh.userData['tleLine1'] = sat.tle.line1;
     mesh.userData['tleLine2'] = sat.tle.line2;
   }
 
-  // Asignar el ID si no lo tiene (o forzamos a número válido)
   mesh.userData['id'] = Number(id);
 
   if (!mesh.userData['tleLine1'] || !mesh.userData['tleLine2']) {
@@ -133,7 +155,6 @@ async focusOnSatellite(sat: any): Promise<void> {
 
   SceneManager.isSelectingFromSearch = true;
 
-  // Mostrar como si fuera clicado
   const numericId = Number(id);
   SceneManager.focusCameraOnSatelliteById(id);
   SceneManager.showSatelliteInfoFromData(mesh.userData, numericId);
@@ -165,12 +186,12 @@ async focusOnSatellite(sat: any): Promise<void> {
   }
 
   get filteredResults() {
-    return this.searchResults.filter(sat => {
+    return this.visibleSatellitesData.filter(sat => {
       const name = (sat.info?.satname || '').toUpperCase();
-      const orbitType = sat.orbital?.orbitType || 'Otro';
+      const orbitType = sat.orbital?.orbitType || ''; // Usa cadena vacía si no existe
       const category = sat.info?.category || '';
 
-      const matchesOrbit = !this.selectedOrbitType || sat.orbital.orbitType === this.selectedOrbitType;
+      const matchesOrbit = !this.selectedOrbitType || orbitType === this.selectedOrbitType;
       const matchesSpecial =
         !this.selectedSpecialType ||
         (this.selectedSpecialType === 'Starlink' && name.includes('STARLINK')) ||
@@ -181,16 +202,38 @@ async focusOnSatellite(sat: any): Promise<void> {
     });
   }
 
-  toggleOrbitType(type: string) {
+  async toggleOrbitType(type: string) {
     this.selectedOrbitType = this.selectedOrbitType === type ? null : type;
+    await this.onSearch();
   }
 
-  toggleSpecialType(type: string) {
+  async toggleSpecialType(type: string) {
     this.selectedSpecialType = this.selectedSpecialType === type ? null : type;
+
+    if (!this.selectedSpecialType) {
+      this.visibleSatellitesData = this.allSatellitesData;
+    } else {
+      const filterName = this.selectedSpecialType.toLowerCase();
+
+      this.visibleSatellitesData = this.allSatellitesData.filter(sat => {
+        const name = (sat.info?.satname ?? '').toLowerCase();
+        return name.includes(filterName);
+      });
+      console.log('VisibleSatellites tras filtro especial:', this.visibleSatellitesData.map(s => s.info?.satname));
+    }
+
+    if (SceneManager.satelliteManager) {
+      await SceneManager.satelliteManager.loadSatellitesFiltered(this.visibleSatellitesData);
+    }
+
+    if (this.searchText.trim() !== '') {
+      await this.onSearch();
+    }
   }
 
   toggleCategory(type: string) {
     this.selectedCategory = this.selectedCategory === type ? null : type;
+    this.onSearch();
   }
 
 }

@@ -3,9 +3,6 @@ import * as satellite from 'satellite.js';
 
 import { loadAndMergeSatelliteData } from '../assets/data/data-loader';
 import { Earth } from './earth';
-import { SceneManager } from './scene.manager';
-import { StarfieldComponent } from '../app/components/starfield/starfield.component';
-import { time } from 'console';
 
 const EARTH_RADIUS_KM = 6371;
 
@@ -32,14 +29,12 @@ export class SatelliteManager {
   private instancedMeshes: Map<string, InstancedMesh> = new Map();
   private instanceIndexCounter: Map<string, number> = new Map();
   private instanceLookup: Map<string, { orbitType: string, index: number }> = new Map();
-  private visibleSatellitesIds = new Set<string>();
   private propagatedPositions = new Map<string, Vector3>();
   private visibleSatelliteIds = new Set<string>();
   private hiddenSatelliteIds = new Set<string>();
   private satelliteDataArray: SatelliteData[] = [];
-  private selectedSatelliteId: string | null = null;
-  private originalColors: Map<string, number> = new Map();
-  private satelliteColors: Map<string, number> = new Map();
+  private filteredSatellites: SatelliteData[] = [];
+  private instanceIdToSatelliteDataIndex: number[] = [];
 
   private lastUpdateTime = 0;
   private readonly UPDATE_THROTTLE = 100;
@@ -139,47 +134,49 @@ export class SatelliteManager {
     return null;
   }
 
-  private createInstancedMesh(orbitType: string, color: number, maxCount = this.MAX_INSTANCES_PER_TYPE) {
-    const geometry = new SphereGeometry(0.2);
-    const material = new MeshBasicMaterial({
-      color: new Color(color),
-      transparent: true,
-      opacity: 0.8
-    });
+private createInstancedMesh(orbitType: string, color: number, maxCount = this.MAX_INSTANCES_PER_TYPE) {
+  const geometry = new SphereGeometry(0.2);
+  const material = new MeshBasicMaterial({
+    color: new Color(color),
+    transparent: true,
+    opacity: 0.8
+  });
 
-    const instancedMesh = new InstancedMesh(geometry, material, maxCount);
-    instancedMesh.instanceMatrix.setUsage(DynamicDrawUsage);
-    instancedMesh.frustumCulled = false;
+  const instancedMesh = new InstancedMesh(geometry, material, maxCount);
+  instancedMesh.instanceMatrix.setUsage(DynamicDrawUsage);
+  instancedMesh.frustumCulled = false;
 
-    instancedMesh.raycast = (raycaster: any, intersects: any) => {
-      const matrix = new Matrix4();
-      const position = new Vector3();
-      const quaternion = new Quaternion();
-      const scale = new Vector3();
+  instancedMesh.raycast = (raycaster: any, intersects: any) => {
+    const matrix = new Matrix4();
+    const position = new Vector3();
+    const quaternion = new Quaternion();
+    const scale = new Vector3();
 
-      const instanceCount = this.instanceIndexCounter.get(orbitType) || 0;
+    const instanceCount = this.instanceIndexCounter.get(orbitType) || 0;
 
-      for (let i = 0; i < instanceCount; i++) {
-        instancedMesh.getMatrixAt(i, matrix);
-        matrix.decompose(position, quaternion, scale);
+    for (let i = 0; i < instanceCount; i++) {
+      instancedMesh.getMatrixAt(i, matrix);
+      matrix.decompose(position, quaternion, scale);
 
-        const distance = raycaster.ray.distanceToPoint(position);
+      const distance = raycaster.ray.distanceToPoint(position);
 
-        if (distance < 2) {
-          intersects.push({
-            distance: distance,
-            point: position.clone(),
-            instanceId: i,
-            object: instancedMesh
-          });
-        }
+      const threshold = 0.3;
+
+      if (distance < threshold) {
+        intersects.push({
+          distance: distance,
+          point: position.clone(),
+          instanceId: i,
+          object: instancedMesh
+        });
       }
-    };
+    }
+  };
 
-    this.earth.addToScene(instancedMesh);
-    this.instancedMeshes.set(orbitType, instancedMesh);
-    this.instanceIndexCounter.set(orbitType, 0);
-  }
+  this.earth.addToScene(instancedMesh);
+  this.instancedMeshes.set(orbitType, instancedMesh);
+  this.instanceIndexCounter.set(orbitType, 0);
+}
 
   public handleSatelliteClick(id: string): void {
     const data = this.satData.get(id);
@@ -283,6 +280,79 @@ public addSatellite(
       : satellitesData.filter(sat => (sat.info?.satname?.toLowerCase() ?? '').includes('starlink'));
 
     this.startDynamicLoading();
+  }
+
+public async loadSatellitesFiltered(visibleSatellitesData: any[]) {
+  // Limpia toda la visualización actual
+  this.clearSatellitesFromScene();
+
+  const groupedByOrbit: Record<string, { color: number, sats: any[] }> = {};
+
+  this.instanceIdToSatelliteDataIndex = [];
+
+  // Agrupar satélites filtrados por tipo de órbita
+  for (const sat of visibleSatellitesData) {
+    if (!sat.tle_line_1 || !sat.tle_line_2) continue;
+
+    const positionEci = this.calculateSatellitePositionEci(sat);
+    const { orbitType, color } = this.getOrbitTypeAndColor(positionEci);
+
+    if (!groupedByOrbit[orbitType]) {
+      groupedByOrbit[orbitType] = { color, sats: [] };
+    }
+
+    sat.__positionEci = positionEci;
+    groupedByOrbit[orbitType].sats.push(sat);
+  }
+
+  // Crear InstancedMeshes y posicionar satélites
+  for (const [orbitType, { color, sats }] of Object.entries(groupedByOrbit)) {
+    this.createInstancedMesh(orbitType, color, sats.length);
+
+    const instancedMesh = this.instancedMeshes.get(orbitType);
+    if (!instancedMesh) continue;
+
+    const matrix = new Matrix4();
+    let index = 0;
+
+    for (const sat of sats) {
+      const pos = sat.__positionEci;
+      matrix.identity();
+      matrix.setPosition(new Vector3(pos.x, pos.y, pos.z));
+
+      instancedMesh.setMatrixAt(index, matrix);
+
+      if (!instancedMesh.userData['ids']) instancedMesh.userData['ids'] = [];
+      instancedMesh.userData['ids'][index] = sat.norad_cat_id;
+
+      const originalIndex = this.allSatellitesData.findIndex(s => s.norad_cat_id === sat.norad_cat_id);
+      this.instanceIdToSatelliteDataIndex.push(originalIndex);
+
+      index++;
+    }
+
+    instancedMesh.instanceMatrix.needsUpdate = true;
+
+    this.instanceIndexCounter.set(orbitType, index);
+  }
+
+  console.log(`Satélites renderizados: ${this.instanceIdToSatelliteDataIndex.length}`);
+}
+
+  clearSatellitesFromScene() {
+    for (const mesh of this.instancedMeshes.values()) {
+      this.earth.removeFromScene(mesh);
+      mesh.geometry.dispose();
+
+      if (Array.isArray(mesh.material)) {
+        mesh.material.forEach(mat => mat.dispose());
+      } else {
+        mesh.material.dispose();
+      }
+    }
+    this.instancedMeshes.clear();
+    this.instanceIndexCounter.clear();
+    this.instanceIdToSatelliteDataIndex = [];
   }
 
   public async loadSatelliteById(id: string, force = false): Promise<Object3D | undefined> {
@@ -539,8 +609,23 @@ public addSatellite(
   }
 
   public dispose(): void {
+    console.log('Dispose');
     this.stopUpdating();
     this.stopDynamicLoading();
+
+    this.instancedMeshes.forEach((mesh) => {
+      this.earth.removeFromScene(mesh);
+      mesh.geometry.dispose();
+      if (Array.isArray(mesh.material)) {
+        mesh.material.forEach(mat => mat.dispose());
+      } else {
+        mesh.material.dispose();
+      }
+    });
+
+    this.instancedMeshes.clear();
+    this.instanceIndexCounter.clear();
+
     this.markers.forEach(m => this.earth.removeMarker(m));
     this.orbits.forEach(o => this.earth.removeFromScene(o));
     this.markers.clear();
@@ -699,4 +784,41 @@ public addSatellite(
       positionEci.y * (this.earth.getRadius() / EARTH_RADIUS_KM)
     );
   }
+
+  public calculateSatellitePositionEci(sat: any, date: Date = new Date()): { x: number, y: number, z: number } {
+    try {
+      // Validar que el satélite tiene TLE con el nombre correcto
+      if (!sat.tleLine1 || !sat.tleLine2) {
+        throw new Error(`TLE data missing for satellite ${sat.norad_cat_id}`);
+      }
+
+      // Crear satrec con las líneas correctas
+      const satrec = satellite.twoline2satrec(sat.tleLine1, sat.tleLine2);
+      const posVel = satellite.propagate(satrec, date);
+
+      if (!posVel || !posVel.position) {
+        throw new Error(`Failed to propagate satellite ${sat.norad_cat_id}`);
+      }
+
+      const scaleFactor = this.earth.getRadius() / EARTH_RADIUS_KM;
+
+      return {
+        x: posVel.position.x * scaleFactor,
+        y: posVel.position.z * scaleFactor,
+        z: posVel.position.y * scaleFactor
+      };
+    } catch (error) {
+
+      return { x: 0, y: 0, z: 0 };
+    }
+  }
+
+  public setFilteredSatellites(satellites: SatelliteData[]) {
+    this.filteredSatellites = satellites;
+  }
+
+  public getAllInstancedMeshes(): InstancedMesh[] {
+    return Array.from(this.instancedMeshes.values());
+  }
+
 }

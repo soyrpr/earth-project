@@ -1,8 +1,28 @@
+.time-slider-toggle {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  z-index: 1001;
+  padding: 5px 10px;
+}
+
+.time-slider-toggle button {
+  background: #B8CFCE;
+  color: #333446;
+  border: none;
+  border-radius: 6px 6px 0 0;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
+
 .time-slider {
-  background: #222;
-  color: #eee;
+  background: #333446;
+  color: #EAEFEF;
   padding: 12px 20px;
   border-radius: 8px 8px 0 0;
+  border-color: #B8CFCE;
   width: 100vw;
   box-sizing: border-box;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -44,8 +64,8 @@
   border-radius: 4px;
   border: none;
   font-size: 1em;
-  background: #444;
-  color: #eee;
+  background: #EAEFEF;
+  color: #333446;
 }
 
 .speed-controls {
@@ -66,8 +86,8 @@
   font-size: 0.9em;
   border-radius: 4px;
   border: none;
-  background: #444;
-  color: #eee;
+  background: #EAEFEF;
+  color: #333446;
 }
 
 .speed-controls span {
@@ -76,9 +96,9 @@
 }
 
 .time-slider button {
-  background-color: #333;
+  background-color: #EAEFEF;
   border: none;
-  color: #eee;
+  color: #333446;
   padding: 4px 10px;
   font-size: 0.75em;
   border-radius: 4px;
@@ -87,9 +107,16 @@
 }
 
 .time-slider button:hover {
-  background-color: #555;
+  background-color: #EAEFEF;
 }
 
 .time-slider button:active {
-  background-color: #777;
+  background-color: #B8CFCE;
+}
+
+.time-slider .controls {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 12px;
 }
