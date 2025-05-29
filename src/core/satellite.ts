@@ -17,6 +17,52 @@ interface SatelliteData {
   altitude: number;
 }
 
+const ORBIT_RANGES = {
+  'LEO': {
+    min: 160,
+    max: 2000,
+    description: 'Órbita Terrestre Baja (160-2000 km)',
+    color: 0x00ff00,
+    characteristics: [
+      'Órbita más cercana a la Tierra',
+      'Período orbital: 90-120 minutos',
+      'Ideal para observación terrestre y comunicaciones de baja latencia',
+      'Usado por la mayoría de satélites de observación y Starlink'
+    ] as string[]
+  },
+  'MEO': {
+    min: 2000,
+    max: 35786,
+    description: 'Órbita Terrestre Media (2000-35786 km)',
+    color: 0xffff00,
+    characteristics: [
+      'Órbita intermedia',
+      'Período orbital: 2-24 horas',
+      'Usado principalmente por satélites de navegación (GPS, Galileo)',
+      'Cobertura más amplia que LEO'
+    ] as string[]
+  },
+  'GEO': {
+    min: 35786,
+    max: 35886,
+    description: 'Órbita Geosíncrona (35786 km)',
+    color: 0xff0000,
+    characteristics: [
+      'Órbita más alta comúnmente usada',
+      'Período orbital: 24 horas (sincronizado con la rotación terrestre)',
+      'Ideal para comunicaciones y meteorología',
+      'Satélite permanece fijo sobre un punto de la Tierra'
+    ] as string[]
+  }
+} as const;
+
+type OrbitType = keyof typeof ORBIT_RANGES;
+type OrbitRange = typeof ORBIT_RANGES[OrbitType];
+
+function isValidOrbitType(type: string): type is OrbitType {
+  return type in ORBIT_RANGES;
+}
+
 export class SatelliteManager {
   private markers: Map<string, Object3D> = new Map();
   private satData: Map<string, SatelliteData> = new Map();
@@ -50,6 +96,8 @@ export class SatelliteManager {
 
   private clusters: Map<string, Set<string>> = new Map();
   private clusterPositions: Map<string, Vector3> = new Map();
+
+  private readonly ORBIT_RANGES = ORBIT_RANGES;
 
   constructor(private readonly earth: Earth) {}
 
@@ -199,6 +247,10 @@ public addSatellite(
 ): void {
   if (this.markers.has(id) || this.loadedSatelliteIds.has(id)) return;
 
+  // Verificar si el satélite debe ser visible según los filtros actuales
+  const shouldBeVisible = !this.hiddenSatelliteIds.has(id);
+  if (!shouldBeVisible) return;
+
   const satrec = satellite.twoline2satrec(tleLine1, tleLine2);
   const now = new Date();
   const posVel = satellite.propagate(satrec, now);
@@ -279,6 +331,16 @@ public addSatellite(
       ? satellitesData
       : satellitesData.filter(sat => (sat.info?.satname?.toLowerCase() ?? '').includes('starlink'));
 
+    // Inicializar todos los satélites como visibles
+    this.visibleSatelliteIds.clear();
+    this.hiddenSatelliteIds.clear();
+    this.allSatellitesData.forEach(sat => {
+      const id = sat.norad_cat_id?.toString();
+      if (id) {
+        this.visibleSatelliteIds.add(id);
+      }
+    });
+
     this.startDynamicLoading();
   }
 
@@ -286,9 +348,14 @@ public async loadSatellitesFiltered(visibleSatellitesData: any[]) {
   // Limpia toda la visualización actual
   this.clearSatellitesFromScene();
 
-  const groupedByOrbit: Record<string, { color: number, sats: any[] }> = {};
+  // Reiniciar las estructuras de datos
+  this.satData.clear();
+  this.loadedSatelliteIds.clear();
+  this.instanceLookup.clear();
+  this.satelliteDataArray = [];
+  this.propagatedPositions.clear();
 
-  this.instanceIdToSatelliteDataIndex = [];
+  const groupedByOrbit: Record<string, { color: number, sats: any[] }> = {};
 
   // Agrupar satélites filtrados por tipo de órbita
   for (const sat of visibleSatellitesData) {
@@ -317,26 +384,48 @@ public async loadSatellitesFiltered(visibleSatellitesData: any[]) {
 
     for (const sat of sats) {
       const pos = sat.__positionEci;
-      matrix.identity();
-      matrix.setPosition(new Vector3(pos.x, pos.y, pos.z));
+      const scaleFactor = this.earth.getRadius() / EARTH_RADIUS_KM;
+      const posScaled = new Vector3(
+        pos.x * scaleFactor,
+        pos.z * scaleFactor,
+        pos.y * scaleFactor
+      );
 
+      matrix.makeTranslation(posScaled.x, posScaled.y, posScaled.z);
       instancedMesh.setMatrixAt(index, matrix);
 
+      // Guardar datos del satélite
+      const satData: SatelliteData = {
+        tleLine1: sat.tle_line_1,
+        tleLine2: sat.tle_line_2,
+        name: sat.info?.satname || '',
+        satrec: satellite.twoline2satrec(sat.tle_line_1, sat.tle_line_2),
+        orbital: sat.orbital,
+        position: posScaled,
+        id: sat.norad_cat_id,
+        altitude: Math.sqrt(pos.x * pos.x + pos.y * pos.y + pos.z * pos.z) - EARTH_RADIUS_KM
+      };
+
+      this.satData.set(sat.norad_cat_id, satData);
+      this.satelliteDataArray[index] = satData;
+      this.loadedSatelliteIds.add(sat.norad_cat_id);
+      this.instanceLookup.set(sat.norad_cat_id, { orbitType, index });
+      this.propagatedPositions.set(sat.norad_cat_id, posScaled);
+
+      // Guardar referencia para raycast
+      if (!instancedMesh.userData) instancedMesh.userData = {};
       if (!instancedMesh.userData['ids']) instancedMesh.userData['ids'] = [];
       instancedMesh.userData['ids'][index] = sat.norad_cat_id;
-
-      const originalIndex = this.allSatellitesData.findIndex(s => s.norad_cat_id === sat.norad_cat_id);
-      this.instanceIdToSatelliteDataIndex.push(originalIndex);
 
       index++;
     }
 
+    instancedMesh.count = index;
     instancedMesh.instanceMatrix.needsUpdate = true;
-
     this.instanceIndexCounter.set(orbitType, index);
   }
 
-  console.log(`Satélites renderizados: ${this.instanceIdToSatelliteDataIndex.length}`);
+  console.log(`Satélites renderizados: ${this.loadedSatelliteIds.size}`);
 }
 
   clearSatellitesFromScene() {
@@ -465,7 +554,26 @@ public async loadSatellitesFiltered(visibleSatellitesData: any[]) {
 
     this.updateClusters();
 
+    // Primero, ocultar todos los satélites que deben estar ocultos
     for (const [id, position] of this.propagatedPositions) {
+      const meshData = this.instanceLookup.get(id);
+      if (meshData) {
+        const { orbitType, index } = meshData;
+        const instancedMesh = this.instancedMeshes.get(orbitType);
+        if (instancedMesh) {
+          dummy.position.copy(position);
+          // Si el satélite está oculto, establecer su escala a 0
+          dummy.scale.setScalar(this.hiddenSatelliteIds.has(id) ? 0 : 1);
+          dummy.updateMatrix();
+          instancedMesh.setMatrixAt(index, dummy.matrix);
+        }
+      }
+    }
+
+    // Luego, actualizar los satélites visibles
+    for (const [id, position] of this.propagatedPositions) {
+      if (this.hiddenSatelliteIds.has(id)) continue;
+
       const distance = position.distanceTo(cameraPosition);
       const lodLevel = this.getLODLevel(distance);
 
@@ -495,6 +603,7 @@ public async loadSatellitesFiltered(visibleSatellitesData: any[]) {
       }
     }
 
+    // Actualizar todas las matrices de instancia
     for (const mesh of this.instancedMeshes.values()) {
       mesh.instanceMatrix.needsUpdate = true;
     }
@@ -510,11 +619,18 @@ public async loadSatellitesFiltered(visibleSatellitesData: any[]) {
     const batchSize = 1000;
     let loadedCount = 0;
 
+    // Si no hay satélites visibles definidos, considerar todos como visibles
+    const shouldLoadAll = this.visibleSatelliteIds.size === 0 && this.hiddenSatelliteIds.size === 0;
+
     for (const sat of this.allSatellitesData) {
       if (loadedCount >= batchSize) break;
 
-      const id = sat.norad_cat_id;
-      if (this.loadedSatelliteIds.has(id)) continue;
+      const id = sat.norad_cat_id?.toString();
+      if (!id || this.loadedSatelliteIds.has(id)) continue;
+
+      // Verificar si el satélite debe ser visible según los filtros actuales
+      const shouldBeVisible = shouldLoadAll || !this.hiddenSatelliteIds.has(id);
+      if (!shouldBeVisible) continue;
 
       try {
         const satrec = satellite.twoline2satrec(sat.tle_line_1, sat.tle_line_2);
@@ -650,7 +766,10 @@ public async loadSatellitesFiltered(visibleSatellitesData: any[]) {
   public startDynamicLoading(): void {
     this.stopDynamicLoading();
     this.dynamicLoadingInterval = setInterval(() => {
-      this.tryAddVisibleSatellites();
+      // Solo intentar cargar satélites si hay satélites visibles
+      if (this.visibleSatelliteIds.size > 0) {
+        this.tryAddVisibleSatellites();
+      }
       this.cleanupSatellites();
     }, 500);
   }
@@ -720,19 +839,27 @@ public async loadSatellitesFiltered(visibleSatellitesData: any[]) {
     return results;
   }
 
-  public getOrbitTypeAndColor(positionEci: { x: number; y: number; z: number }): { orbitType: string; color: number } {
+  public getOrbitTypeAndColor(positionEci: { x: number; y: number; z: number }): { orbitType: string; color: number; description: string; characteristics: string[] } {
     const r = Math.sqrt(positionEci.x ** 2 + positionEci.y ** 2 + positionEci.z ** 2);
     const altitude = Math.abs(r - EARTH_RADIUS_KM);
 
-    if (altitude >= 160 && altitude <= 2000) {
-      return { orbitType: 'LEO (Órbita Terrestre Baja)', color: 0x00ff00 };  // verde
-    } else if (altitude > 2000 && altitude < 35786) {
-      return { orbitType: 'MEO (Órbita Terrestre Media)', color: 0xffff00 };  // amarillo
-    } else if (altitude >= 35686 && altitude <= 35886) {
-      return { orbitType: 'GEO (Órbita Geosíncrona)', color: 0xff0000 };  // rojo
-    } else {
-      return { orbitType: 'Desconocido', color: 0x888888 }; // gris
+    for (const [type, range] of Object.entries(this.ORBIT_RANGES)) {
+      if (altitude >= range.min && altitude <= range.max) {
+        return {
+          orbitType: type,
+          color: range.color,
+          description: range.description,
+          characteristics: range.characteristics
+        };
+      }
     }
+
+    return {
+      orbitType: 'Desconocido',
+      color: 0x888888,
+      description: 'Órbita no clasificada',
+      characteristics: ['Altitud fuera de los rangos conocidos']
+    };
   }
 
   public calculateAltitude(positionEci: { x: number; y: number; z: number }): number {
@@ -819,6 +946,92 @@ public async loadSatellitesFiltered(visibleSatellitesData: any[]) {
 
   public getAllInstancedMeshes(): InstancedMesh[] {
     return Array.from(this.instancedMeshes.values());
+  }
+
+  public showSatellitesByOrbitType(orbitType: string): void {
+    if (!isValidOrbitType(orbitType)) {
+      console.error(`Tipo de órbita no válido: ${orbitType}`);
+      return;
+    }
+
+    // Limpiar satélites actuales
+    this.clearSatellitesFromScene();
+
+    // Obtener el rango de altitud para el tipo de órbita seleccionado
+    const orbitRange = this.ORBIT_RANGES[orbitType];
+
+    // Filtrar y cargar solo los satélites del tipo de órbita seleccionado
+    const filteredSatellites = this.allSatellitesData.filter(sat => {
+      try {
+        const satrec = satellite.twoline2satrec(sat.tle_line_1, sat.tle_line_2);
+        const posVel = satellite.propagate(satrec, new Date());
+        if (!posVel?.position) return false;
+
+        const r = Math.sqrt(
+          posVel.position.x ** 2 +
+          posVel.position.y ** 2 +
+          posVel.position.z ** 2
+        );
+        const altitude = Math.abs(r - EARTH_RADIUS_KM);
+        return altitude >= orbitRange.min && altitude <= orbitRange.max;
+      } catch (error) {
+        console.error(`Error al calcular la altitud del satélite ${sat.norad_cat_id}:`, error);
+        return false;
+      }
+    });
+
+    // Cargar los satélites filtrados
+    this.loadSatellitesFiltered(filteredSatellites);
+  }
+
+  public hideNonStarlinkSatellites(): void {
+    // Limpiar satélites actuales
+    this.clearSatellitesFromScene();
+
+    // Filtrar solo satélites Starlink
+    const starlinkSatellites = this.allSatellitesData.filter(sat => {
+      const name = sat.info?.satname?.toLowerCase() || '';
+      return name.includes('starlink');
+    });
+
+    // Cargar los satélites filtrados
+    this.loadSatellitesFiltered(starlinkSatellites);
+  }
+
+  public showAllSatellites(): void {
+    // Limpiar satélites actuales
+    this.clearSatellitesFromScene();
+
+    // Cargar todos los satélites
+    this.loadSatellitesFiltered(this.allSatellitesData);
+  }
+
+  public showSatellitesByPattern(pattern: RegExp): void {
+    // Limpiar satélites actuales
+    this.clearSatellitesFromScene();
+
+    // Filtrar satélites por patrón
+    const filteredSatellites = this.allSatellitesData.filter(sat => {
+      const name = sat.info?.satname || '';
+      return pattern.test(name);
+    });
+
+    // Cargar los satélites filtrados
+    this.loadSatellitesFiltered(filteredSatellites);
+  }
+
+  public showSatellitesByCategory(category: string): void {
+    // Limpiar satélites actuales
+    this.clearSatellitesFromScene();
+
+    // Filtrar satélites por categoría
+    const filteredSatellites = this.allSatellitesData.filter(sat => {
+      const satCategory = sat.info?.category?.toLowerCase() || 'satellite';
+      return satCategory === category.toLowerCase();
+    });
+
+    // Cargar los satélites filtrados
+    this.loadSatellitesFiltered(filteredSatellites);
   }
 
 }
