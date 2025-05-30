@@ -22,6 +22,7 @@ export class SatellitesComponent implements OnInit {
   selectedSatelliteId: number | null = null;
   showSatelites = true;
   visibleSatellitesData: any[] = [];
+  isSearchVisible = false;
 
   orbitTypes = ['LEO', 'MEO', 'GEO'];
   specialTypes = ['Starlink', 'Galileo'];
@@ -290,5 +291,9 @@ export class SatellitesComponent implements OnInit {
     console.log(`Satélites: ${totalSat}, Basura espacial: ${totalDebris}`);
 
     await this.onSearch();
+  }
+
+  toggleSearchVisibility() {
+    this.isSearchVisible = !this.isSearchVisible;
   }
 }
