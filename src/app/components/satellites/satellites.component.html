@@ -26,14 +26,13 @@
       </button>
     </div>
 
-    <div class="filter-group">
-      <label>Clase:</label>
-      <button *ngFor="let cat of categories"
-              (click)="toggleCategory(cat)"
-              [class.active]="selectedCategory === cat">
-        {{ cat === 'satellite' ? 'Satélite' : 'Basura' }}
-      </button>
-    </div>
+  <div class="filter-group">
+    <label>Clase:</label>
+    <button *ngFor="let cat of categories"
+            (click)="toggleCategory(cat)"
+            [class.active]="selectedFilters[cat]">
+      {{ cat === 'satellites' ? 'Satélites' : 'Basura' }}
+    </button>
   </div>
 
   <div class="status-message" *ngIf="searchStatus === 'loading'">Buscando satélites...</div>
@@ -43,7 +42,7 @@
   <div *ngIf="searchResults.length > 0 && searchStatus === 'ready'" class="results-list">
     <p>Listado:</p>
     <ul>
-      <li *ngFor="let sat of filteredResults"
+      <li *ngFor="let sat of searchResults"
           (click)="focusOnSatellite(sat)"
           [class.selected]="sat.norad_cat_id === selectedSatelliteId">
           {{ sat.info?.satname }} (ID: {{ sat.norad_cat_id }})
