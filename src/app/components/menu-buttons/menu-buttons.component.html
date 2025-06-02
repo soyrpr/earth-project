@@ -2,10 +2,28 @@
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
 </head>
 <div class="menu-buttons" (click)="$event.stopPropagation()">
-  <button class="menu-button" [class.active]="isTimeActive" (click)="toggleTime()">
+  <button
+    class="menu-button"
+    [class.active]="isTimeActive"
+    (click)="toggleTime()"
+    title="Control de tiempo"
+  >
     <i class="material-icons">schedule</i>
   </button>
-  <button class="menu-button" [class.active]="isSearchActive" (click)="toggleSearch()">
+  <button
+    class="menu-button"
+    [class.active]="isSearchActive"
+    (click)="toggleSearch()"
+    title="Buscar satélite"
+  >
     <i class="material-icons">search</i>
+  </button>
+  <button
+    class="menu-button"
+    [class.active]="isAreaScanActive"
+    (click)="toggleAreaScan()"
+    title="Escaneo de línea"
+  >
+    <i class="material-icons">location_searching</i>
   </button>
 </div>

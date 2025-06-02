@@ -35,6 +35,10 @@ export class Earth {
     return this.earthMesh;
   }
 
+  public getMesh(): Mesh {
+    return this.earthMesh;
+  }
+
   public calcPosFromLatLonRad(lat: number, lon: number, radius: number): [number, number, number] {
     const phi = (90 - lat) * (Math.PI / 180);
     const theta = (lon + 180) * (Math.PI / 180);

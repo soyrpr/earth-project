@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { SceneManager } from '../../../core/scene.manager';
 import { TimeSliderService } from '../../services/time-slider.service';
@@ -18,6 +18,7 @@ export class TimeSliderComponent {
 
   speedUnit: 'seconds' | 'minutes' | 'hours' | 'days' = 'seconds';
   speedAmount = 1;
+  currentTime = signal<Date>(new Date());
 
   timeDirection = 1;
   lastUpdateTime = Date.now();
@@ -27,7 +28,9 @@ export class TimeSliderComponent {
   private baseTime = new Date();
   private realTimeInterval: any;
 
-  constructor(private timeSliderService :TimeSliderService) {}
+  constructor(
+    private timeSliderService :TimeSliderService,
+  ) {}
 
   ngOnInit() {
     this.normalizeSpeedUnit();
@@ -67,6 +70,7 @@ export class TimeSliderComponent {
         const deltaSim = deltaTime * (this.speedAmount * msPerUnit / 1000) * this.timeDirection;
         this.baseTime = new Date(this.baseTime.getTime() + deltaSim);
         this.simulatedTime = this.baseTime;
+        this.timeSliderService.setSimulatedTime(this.simulatedTime);
         SceneManager.satelliteManager.simulateSatellitesAtTime(this.simulatedTime);
       }
     }, 100);
@@ -83,6 +87,7 @@ export class TimeSliderComponent {
     if (target.value) {
       this.baseTime = new Date(target.value);
       this.simulatedTime = new Date(this.baseTime);
+      this.timeSliderService.setSimulatedTime(this.simulatedTime);
     }
   }
 
@@ -139,6 +144,14 @@ export class TimeSliderComponent {
     const [singular, plural] = this.timeUnitLabels[this.speedUnit];
     const label = this.speedAmount === 1 ? singular : plural;
     return `${this.speedAmount} ${label}`;
+  }
+
+  getCurrentTime(): Date {
+    return this.currentTime();
+  }
+
+  setTime(date: Date) {
+    this.currentTime.set(date);
   }
 
   getMaxForUnit(unit: 'seconds' | 'minutes' | 'hours' | 'days'): number {

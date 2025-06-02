@@ -1,3 +1,7 @@
+<head>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+</head>
+
 <div class="time-slider" *ngIf="showControls" (click)="$event.stopPropagation()">
   <div class="content-wrapper">
     <p><strong>Hora simulada:</strong> {{ simulatedTime | date: 'medium' }}</p>
@@ -29,12 +33,18 @@
     </div>
 
     <div class="controls">
-      <button (click)="toggleSimulation()">
-        {{ isSimulating ? 'Pausar' : 'Reanudar' }}
-      </button>
-      <button (click)="toggleDirection()">
-        {{ timeDirection === 1 ? 'Ir atrás en el tiempo' : 'Ir adelante en el tiempo' }}
-      </button>
+    <button (click)="toggleSimulation()">
+      <span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 4px;">
+        {{ isSimulating ? 'pause' : 'play_arrow' }}
+      </span>
+      {{ isSimulating ? 'Pausar' : 'Reanudar' }}
+    </button>
+    <button (click)="toggleDirection()">
+      <span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 4px;">
+        {{ timeDirection === 1 ? 'update' : 'history' }}
+      </span>
+      {{ timeDirection === 1 ? 'Avanzando en el tiempo' : 'Retrocediendo en el tiempo' }}
+    </button>
     </div>
   </div>
 </div>

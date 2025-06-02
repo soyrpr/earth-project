@@ -138,14 +138,11 @@ export class SceneManager {
     const info: Record<string, string> = {
       'Nombre': satData.name,
       'ID': satData.id,
-      'Tipo de Órbita': orbitType,
+
       'Altitud': `${formatNumber(altitude)} km`,
       'Latitud': this.formatCoordinate(lat * (180 / Math.PI), 'N', 'S'),
       'Longitud': this.formatCoordinate(lon * (180 / Math.PI), 'E', 'W'),
     };
-    if (satData.orbital?.velocity != null) {
-      info['Velocidad Orbital'] = `${formatNumber(satData.orbital.velocity)} km/s`;
-    }
     if (satData.orbital?.period != null) {
       info['Período'] = `${formatNumber(satData.orbital.period)} min`;
     }
@@ -155,7 +152,7 @@ export class SceneManager {
     if (satData.orbital?.apogee != null) {
       info['Apogeo'] = `${formatNumber(satData.orbital.apogee)} km`;
     }
-    if (satData.orbital?.perigee != null) {
+    if (satData.orbital?.perigee != null ) {
       info['Perigeo'] = `${formatNumber(satData.orbital.perigee)} km`;
     }
 
@@ -178,7 +175,7 @@ export class SceneManager {
       newInfoElement.className = 'satellite-info-box';
       newInfoElement.style.display = 'block';
       newInfoElement.style.position = 'absolute';
-      newInfoElement.style.top = '120px';
+      newInfoElement.style.top = '170px';
       newInfoElement.style.left = '20px';
       newInfoElement.style.backgroundColor = '#333446';
       newInfoElement.style.color = '#EAEFEF';
@@ -245,7 +242,6 @@ export class SceneManager {
       infoElement.style.display = 'none';
     }
 
-    // Limpiar líneas cuando se oculta la información
     if (this.selectedOrbitLine) {
       this.selectedOrbitLine.geometry.dispose();
       (this.selectedOrbitLine.material as MeshBasicMaterial).dispose();

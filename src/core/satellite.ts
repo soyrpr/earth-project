@@ -972,6 +972,13 @@ public async loadSatellitesFiltered(visibleSatellitesData: any[], currentDate: D
     return Array.from(this.instancedMeshes.values());
   }
 
+  getAllSatellites(): { name: string, satrec: satellite.SatRec }[] {
+    return this.allSatellitesData.map(s => ({
+      name: s.info?.satname || '',
+      satrec: satellite.twoline2satrec(s.tle_line_1, s.tle_line_2)
+    }));
+  }
+
   public showSatellitesByOrbitType(orbitType: string): void {
     if (!isValidOrbitType(orbitType)) {
       console.error(`Tipo de órbita no válido: ${orbitType}`);
@@ -1062,5 +1069,9 @@ public async loadSatellitesFiltered(visibleSatellitesData: any[], currentDate: D
     });
 
     this.loadSatellitesFiltered(filteredSatellites, this.currentDate );
+  }
+
+  public getAllSatellitesData(): any[] {
+    return this.allSatellitesData;
   }
 }
