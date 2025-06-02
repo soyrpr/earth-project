@@ -4,6 +4,7 @@ import { loadAndMergeSatelliteData } from '../../../../data/data-loader';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Vector3 } from 'three';
+import { SatelliteSearchService } from '../../services/satellite-search.service';
 
 @Component({
   selector: 'app-satellites',
@@ -37,6 +38,9 @@ export class SatellitesComponent implements OnInit {
     debris: false,
   };
 
+  constructor( private satelliteSearchService: SatelliteSearchService ) {}
+
+
   async ngOnInit(): Promise<void> {
     try {
       this.allSatellitesData = (await loadAndMergeSatelliteData()) ?? [];
@@ -54,6 +58,10 @@ export class SatellitesComponent implements OnInit {
         sat.info?.satname?.toLowerCase().includes('starlink')
       );
     }
+
+    this.satelliteSearchService.searchVisible$.subscribe(visible => {
+      this.isSearchVisible = visible;
+    });
   }
 
   async onSearch() {
@@ -294,6 +302,6 @@ export class SatellitesComponent implements OnInit {
   }
 
   toggleSearchVisibility() {
-    this.isSearchVisible = !this.isSearchVisible;
+    this.satelliteSearchService.toggleVisibility(); ;
   }
 }

@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { SceneManager } from '../../../core/scene.manager';
+import { TimeSliderService } from '../../services/time-slider.service';
 
 @Component({
   selector: 'app-time-slider',
@@ -26,9 +27,14 @@ export class TimeSliderComponent {
   private baseTime = new Date();
   private realTimeInterval: any;
 
+  constructor(private timeSliderService :TimeSliderService) {}
+
   ngOnInit() {
     this.normalizeSpeedUnit();
     this.startRealTimeUpdates();
+    this.timeSliderService.showControls$.subscribe(value => {
+      this.showControls = value;
+    });
   }
 
   ngOnDestroy() {
@@ -96,7 +102,6 @@ export class TimeSliderComponent {
     let index = units.indexOf(this.speedUnit);
     let amount = this.speedAmount;
 
-    // Subir unidad si supera máximo para esa unidad
     while (amount > maxValues[units[index]] && index < units.length - 1) {
       amount = amount / (units[index] === 'hours' ? 24 : 60);
       index++;

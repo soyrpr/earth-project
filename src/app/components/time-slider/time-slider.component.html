@@ -1,9 +1,3 @@
-<div class="time-slider-toggle" (click)="$event.stopPropagation()">
-  <button (click)="toggleControls()">
-    {{ showControls ? 'Ocultar Control de Tiempo' : 'Mostrar Control de Tiempo' }}
-  </button>
-</div>
-
 <div class="time-slider" *ngIf="showControls" (click)="$event.stopPropagation()">
   <div class="content-wrapper">
     <p><strong>Hora simulada:</strong> {{ simulatedTime | date: 'medium' }}</p>

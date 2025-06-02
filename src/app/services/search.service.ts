@@ -5,10 +5,14 @@ import { BehaviorSubject } from 'rxjs';
   providedIn: 'root'
 })
 export class SearchService {
-  private isSearchVisible = new BehaviorSubject<boolean>(false);
-  isSearchVisible$ = this.isSearchVisible.asObservable();
+  private isSearchVisibleSubject = new BehaviorSubject<boolean>(false);
+  isSearchVisible$ = this.isSearchVisibleSubject.asObservable();
 
   toggleSearch() {
-    this.isSearchVisible.next(!this.isSearchVisible.value);
+    this.isSearchVisibleSubject.next(!this.isSearchVisibleSubject.value);
   }
-} 
+
+  setControlsVisibility(state: boolean) {
+    this.isSearchVisibleSubject.next(state);
+  }
+}
