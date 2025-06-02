@@ -2,6 +2,7 @@ import { Component, ViewChild } from '@angular/core';
 import { SatellitesComponent } from '../satellites/satellites.component';
 import { TimeSliderComponent } from '../time-slider/time-slider.component';
 import { TimeSliderService } from '../../services/time-slider.service';
+import { SatelliteSearchService } from '../../services/satellite-search.service';
 
 @Component({
   selector: 'app-menu-buttons',
@@ -15,21 +16,18 @@ export class MenuButtonsComponent {
   isTimeActive = false;
   isSearchActive = false;
 
-  constructor(private timeSliderService: TimeSliderService) {}
+  constructor(
+    private timeSliderService: TimeSliderService,
+    private satelliteSearchService: SatelliteSearchService
+  ) {}
 
   toggleTime() {
     this.isTimeActive = !this.isTimeActive;
-      this.timeSliderService.toggleControls();
+    this.timeSliderService.toggleControls();
   }
 
   toggleSearch() {
     this.isSearchActive = !this.isSearchActive;
-    const searchSlider = document.querySelector('app-satellites');
-    if (searchSlider) {
-      const button = searchSlider.querySelector('button');
-      if (button) {
-        button.click();
-      }
-    }
+    this.satelliteSearchService.toggleVisibility();
   }
 }

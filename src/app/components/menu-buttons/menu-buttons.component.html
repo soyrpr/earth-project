@@ -1,7 +1,7 @@
 <head>
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
 </head>
-<div class="menu-buttons">
+<div class="menu-buttons" (click)="$event.stopPropagation()">
   <button class="menu-button" [class.active]="isTimeActive" (click)="toggleTime()">
     <i class="material-icons">schedule</i>
   </button>

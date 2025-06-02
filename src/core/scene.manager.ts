@@ -174,16 +174,18 @@ export class SceneManager {
       console.error('No se encontró el elemento para mostrar la información del satélite');
 
       const newInfoElement = document.createElement('div');
-      newInfoElement.id = 'satellite-info';
+      newInfoElement.id = 'satellite-info-box';
+      newInfoElement.className = 'satellite-info-box';
+      newInfoElement.style.display = 'block';
       newInfoElement.style.position = 'absolute';
-      newInfoElement.style.top = '20px';
-      newInfoElement.style.right = '20px';
-      newInfoElement.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
-      newInfoElement.style.color = 'white';
+      newInfoElement.style.top = '120px';
+      newInfoElement.style.left = '20px';
+      newInfoElement.style.backgroundColor = '#333446';
+      newInfoElement.style.color = '#EAEFEF';
       newInfoElement.style.padding = '15px';
-      newInfoElement.style.borderRadius = '5px';
-      newInfoElement.style.fontFamily = 'Arial, sans-serif';
+      newInfoElement.style.borderRadius = '10px';
       newInfoElement.style.zIndex = '1000';
+      newInfoElement.style.maxWidth = '300px';
       newInfoElement.innerHTML = infoHtml;
       document.body.appendChild(newInfoElement);
     }

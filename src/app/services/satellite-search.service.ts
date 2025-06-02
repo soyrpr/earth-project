@@ -9,14 +9,18 @@ export class SatelliteSearchService {
   searchVisible$ = this.searchVisibleSubject.asObservable();
 
   toggleVisibility(): void {
+    console.log('Toggling search visibility. Current value:', this.searchVisibleSubject.value);
     this.searchVisibleSubject.next(!this.searchVisibleSubject.value);
+    console.log('New value:', this.searchVisibleSubject.value);
   }
 
   show(): void {
+    console.log('Showing search');
     this.searchVisibleSubject.next(true);
   }
 
   hide(): void {
+    console.log('Hiding search');
     this.searchVisibleSubject.next(false);
   }
 

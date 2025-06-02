@@ -109,7 +109,6 @@ export class SatelliteManager {
   public getInstancedMesh(): InstancedMesh | null {
     const meshes = Array.from(this.instancedMeshes.values());
     if (meshes.length === 0) {
-      console.log('No hay meshes instanciados disponibles');
       return null;
     }
 
@@ -328,9 +327,11 @@ public addSatellite(
   public async loadSatellites(showAll: boolean = true): Promise<void> {
     const satellitesData = await loadAndMergeSatelliteData();
 
-    this.allSatellitesData = showAll
-      ? satellitesData
-      : satellitesData.filter(sat => (sat.info?.satname?.toLowerCase() ?? '').includes('starlink'));
+    // Filtrar basura espacial por defecto
+    this.allSatellitesData = satellitesData.filter(sat => {
+      const name = sat.info?.satname?.toLowerCase() ?? '';
+      return !name.includes('deb');
+    });
 
     // Inicializar todos los satélites como visibles
     this.visibleSatelliteIds.clear();
@@ -342,31 +343,38 @@ public addSatellite(
       }
     });
 
-    this.startDynamicLoading();
+    await this.loadSatellitesFiltered(this.allSatellitesData, new Date());
   }
 
 public async loadSatellitesFiltered(visibleSatellitesData: any[], currentDate: Date) {
-  // Limpia toda la visualización actual
   this.clearSatellitesFromScene();
 
-  // Reiniciar estructuras de datos
   this.satData.clear();
   this.loadedSatelliteIds.clear();
   this.instanceLookup.clear();
   this.satelliteDataArray = [];
   this.propagatedPositions.clear();
 
+  console.log(`Total satélites a filtrar: ${visibleSatellitesData.length}`);
+
   const groupedByOrbit: Record<string, { color: number, sats: any[] }> = {};
 
-  for (const sat of visibleSatellitesData) {
-    if (!sat.tle_line_1 || !sat.tle_line_2) continue;
+  let noTleCount = 0;
+  let noPropagationCount = 0;
 
-    // Recalcular satrec si no existe o es inválido
+  for (const sat of visibleSatellitesData) {
+    if (!sat.tle_line_1 || !sat.tle_line_2) {
+      noTleCount++;
+      continue;
+    }
+
     sat.satrec = satellite.twoline2satrec(sat.tle_line_1, sat.tle_line_2);
 
-    // Propagar para obtener posición ECI
     const propagation = satellite.propagate(sat.satrec, currentDate);
-    if (!propagation || !propagation.position) continue;
+    if (!propagation || !propagation.position) {
+      noPropagationCount++;
+      continue;
+    }
 
     const pos = propagation.position;
     const positionEci = new Vector3(pos.x, pos.y, pos.z);
@@ -431,20 +439,18 @@ public async loadSatellitesFiltered(visibleSatellitesData: any[], currentDate: D
     instancedMesh.instanceMatrix.needsUpdate = true;
     this.instanceIndexCounter.set(orbitType, index);
   }
-const starlinkCount = this.allSatellitesData.filter(sat => {
-  const name = sat.info?.satname?.toLowerCase() || '';
-  return name.includes('starlink');
-}).length;
 
-const galileoCount = this.allSatellitesData.filter(sat => {
-  const name = sat.info?.satname?.toLowerCase() || '';
-  return name.includes('galileo');
-}).length;
+  const starlinkCount = this.allSatellitesData.filter(sat => {
+    const name = sat.info?.satname?.toLowerCase() || '';
+    return name.includes('starlink');
+  }).length;
 
-console.log(`Total de satélites: ${this.allSatellitesData.length}`);
-console.log(`Satélites Starlink: ${starlinkCount}`);
-console.log(`Satélites Galileo: ${galileoCount}`);
+  const galileoCount = this.allSatellitesData.filter(sat => {
+    const name = sat.info?.satname?.toLowerCase() || '';
+    return name.includes('galileo');
+  }).length;
 
+  console.log(`Total de satélites: ${this.allSatellitesData.length}`);
   console.log(`Satélites renderizados: ${this.loadedSatelliteIds.size}`);
 }
 
@@ -746,7 +752,6 @@ console.log(`Satélites Galileo: ${galileoCount}`);
   }
 
   public dispose(): void {
-    console.log('Dispose');
     this.stopUpdating();
     this.stopDynamicLoading();
 
@@ -1014,7 +1019,38 @@ console.log(`Satélites Galileo: ${galileoCount}`);
       return pattern.test(name);
     });
 
-    this.loadSatellitesFiltered(filteredSatellites, this.currentDate );
+    // Log específico para Galileo
+    if (pattern.toString().includes('galileo')) {
+      filteredSatellites.forEach(sat => {
+
+        try {
+          const satrec = satellite.twoline2satrec(sat.tle_line_1, sat.tle_line_2);
+
+          // Calcular fecha de época
+          const epochYear = satrec.epochyr;
+          const epochDay = satrec.epochdays;
+          const epochDate = new Date(epochYear, 0, epochDay);
+
+          const now = new Date();
+
+          const propagation = satellite.propagate(satrec, now);
+          if (propagation && propagation.position) {
+
+            const epochPropagation = satellite.propagate(satrec, epochDate);
+
+          }
+        } catch (error: any) {
+          console.log(`- Error en procesamiento:`);
+          console.log(`  * Tipo: ${error.name}`);
+          console.log(`  * Mensaje: ${error.message}`);
+          if (error.stack) {
+            console.log(`  * Stack: ${error.stack.split('\n')[0]}`);
+          }
+        }
+      });
+    }
+
+    this.loadSatellitesFiltered(filteredSatellites, this.currentDate);
   }
 
   public showSatellitesByCategory(category: string): void {

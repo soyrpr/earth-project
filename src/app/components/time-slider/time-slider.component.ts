@@ -128,9 +128,17 @@ export class TimeSliderComponent {
     }
   }
 
+  private readonly timeUnitLabels: Record<'seconds' | 'minutes' | 'hours' | 'days', [string, string]> = {
+    seconds: ['segundo', 'segundos'],
+    minutes: ['minuto', 'minutos'],
+    hours: ['hora', 'horas'],
+    days: ['día', 'días']
+  };
+
   getFormattedSpeed(): string {
-    const unit = this.speedAmount === 1 ? this.speedUnit.slice(0, -1) : this.speedUnit;
-    return `${this.speedAmount} ${unit}`;
+    const [singular, plural] = this.timeUnitLabels[this.speedUnit];
+    const label = this.speedAmount === 1 ? singular : plural;
+    return `${this.speedAmount} ${label}`;
   }
 
   getMaxForUnit(unit: 'seconds' | 'minutes' | 'hours' | 'days'): number {

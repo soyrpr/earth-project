@@ -1,10 +1,11 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { SceneManager } from '../../../core/scene.manager';
 import { loadAndMergeSatelliteData } from '../../../../data/data-loader';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Vector3 } from 'three';
 import { SatelliteSearchService } from '../../services/satellite-search.service';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-satellites',
@@ -13,7 +14,7 @@ import { SatelliteSearchService } from '../../services/satellite-search.service'
   standalone: true,
   imports: [CommonModule, FormsModule],
 })
-export class SatellitesComponent implements OnInit {
+export class SatellitesComponent implements OnInit, OnDestroy {
   searchText = '';
   searchResults: any[] = [];
   searchStatus: 'idle' | 'loading' | 'not-found' | 'ready' | 'error' = 'idle';
@@ -24,6 +25,7 @@ export class SatellitesComponent implements OnInit {
   showSatelites = true;
   visibleSatellitesData: any[] = [];
   isSearchVisible = false;
+  private searchSubscription: Subscription | null = null;
 
   orbitTypes = ['LEO', 'MEO', 'GEO'];
   specialTypes = ['Starlink', 'Galileo'];
@@ -38,10 +40,13 @@ export class SatellitesComponent implements OnInit {
     debris: false,
   };
 
-  constructor( private satelliteSearchService: SatelliteSearchService ) {}
-
+  constructor(private satelliteSearchService: SatelliteSearchService) {}
 
   async ngOnInit(): Promise<void> {
+    this.searchSubscription = this.satelliteSearchService.searchVisible$.subscribe(visible => {
+      this.isSearchVisible = visible;
+    });
+
     try {
       this.allSatellitesData = (await loadAndMergeSatelliteData()) ?? [];
     } catch (err) {
@@ -58,10 +63,12 @@ export class SatellitesComponent implements OnInit {
         sat.info?.satname?.toLowerCase().includes('starlink')
       );
     }
+  }
 
-    this.satelliteSearchService.searchVisible$.subscribe(visible => {
-      this.isSearchVisible = visible;
-    });
+  ngOnDestroy(): void {
+    if (this.searchSubscription) {
+      this.searchSubscription.unsubscribe();
+    }
   }
 
   async onSearch() {
@@ -296,7 +303,7 @@ export class SatellitesComponent implements OnInit {
 
     const totalSat = this.allSatellitesData.filter((sat) => !sat.info?.satname.includes('DEB')).length;
     const totalDebris = this.allSatellitesData.filter((sat) => sat.info?.satname.includes('DEB')).length;
-    console.log(`Satélites: ${totalSat}, Basura espacial: ${totalDebris}`);
+    // console.log(`Satélites: ${totalSat}, Basura espacial: ${totalDebris}`);
 
     await this.onSearch();
   }
