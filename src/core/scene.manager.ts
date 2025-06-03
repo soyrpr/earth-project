@@ -108,6 +108,25 @@ export class SceneManager {
         const position = new Vector3();
         position.setFromMatrixPosition(matrix);
 
+        // Verificar si hay línea de visión directa entre la cámara y el satélite
+        const cameraToSatellite = position.clone().sub(this.camera.position);
+        const distance = cameraToSatellite.length();
+        const direction = cameraToSatellite.normalize();
+
+        // Crear un raycaster desde la cámara hacia el satélite
+        const visibilityRaycaster = new Raycaster(this.camera.position, direction);
+        visibilityRaycaster.near = 0.1;
+        visibilityRaycaster.far = distance;
+
+        // Verificar si el rayo intersecta con la Tierra
+        const earthIntersects = visibilityRaycaster.intersectObject(this.earth!.getMesh());
+        
+        // Si hay intersección con la Tierra y está más cerca que el satélite, el satélite está oculto
+        if (earthIntersects.length > 0 && earthIntersects[0].distance < distance) {
+          this.hideSatelliteInfo();
+          return;
+        }
+
         this.selectedSatellitePosition = position;
         this.showSatelliteInfoFromData(satData, instanceId);
 

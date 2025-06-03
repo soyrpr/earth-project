@@ -1,30 +1,25 @@
 import { Injectable } from '@angular/core';
 import { Scene, Camera, Raycaster, Object3D } from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import { RendererManager } from '../../core/renderer.manager';
+import { SceneManager } from '../../core/scene.manager';
 
 @Injectable({
   providedIn: 'root'
 })
 export class GlobeService {
-  private scene: Scene;
-  private camera: Camera;
   private raycaster: Raycaster;
-  private globe: Object3D;
-  private canvas: HTMLCanvasElement;
 
   constructor() {
-    this.scene = new Scene();
-    this.camera = new Camera();
     this.raycaster = new Raycaster();
-    this.globe = new Object3D();
-    this.canvas = document.createElement('canvas');
   }
 
   getScene(): Scene {
-    return this.scene;
+    return SceneManager.scene!;
   }
 
   getCamera(): Camera {
-    return this.camera;
+    return SceneManager.camera!;
   }
 
   getRaycaster(): Raycaster {
@@ -32,26 +27,22 @@ export class GlobeService {
   }
 
   getGlobe(): Object3D {
-    return this.globe;
+    return SceneManager.earth!.getMesh();
   }
 
   getCanvas(): HTMLCanvasElement {
-    return this.canvas;
+    return RendererManager.canvas;
   }
 
-  setScene(scene: Scene) {
-    this.scene = scene;
+  disableCameraControls() {
+    if (RendererManager.controls) {
+      RendererManager.controls.enabled = false;
+    }
   }
 
-  setCamera(camera: Camera) {
-    this.camera = camera;
-  }
-
-  setGlobe(globe: Object3D) {
-    this.globe = globe;
-  }
-
-  setCanvas(canvas: HTMLCanvasElement) {
-    this.canvas = canvas;
+  enableCameraControls() {
+    if (RendererManager.controls) {
+      RendererManager.controls.enabled = true;
+    }
   }
 } 

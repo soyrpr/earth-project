@@ -1,18 +1,30 @@
 <div class="area-scan-container" *ngIf="isVisible$ | async">
-  <h2>Escaneo de Línea</h2>
-  <p>Haz clic y arrastra para dibujar una línea en el globo. Los satélites que crucen la línea serán detectados automáticamente.</p>
+  <h2>Escaneo de Área</h2>
   
-  <div class="scanning-message" *ngIf="isScanning">
-    Escaneando línea...
+  <div class="instructions">
+    <p>Dibuja una línea en el globo para escanear satélites que la crucen.</p>
   </div>
 
-  <ul *ngIf="detectedSatellites.length > 0">
-    <li *ngFor="let satellite of detectedSatellites">
-      {{ satellite.name }}
-    </li>
-  </ul>
+  <div class="scanning-message" *ngIf="isScanning">
+    <div class="spinner"></div>
+    <span>Escaneando satélites...</span>
+  </div>
+
+  <div class="satellites-list" *ngIf="detectedSatellites.length > 0">
+    <h3>Satélites Detectados</h3>
+    <ul>
+      <li *ngFor="let satellite of detectedSatellites" 
+          (click)="focusOnSatellite(satellite)"
+          class="satellite-item">
+        <div class="satellite-info">
+          <span class="satellite-name">{{ satellite.name }}</span>
+          <span class="satellite-id">NORAD: {{ satellite.norad_cat_id }}</span>
+        </div>
+      </li>
+    </ul>
+  </div>
 
   <div class="no-satellites" *ngIf="!isScanning && detectedSatellites.length === 0">
-    No se detectaron satélites cruzando la línea
+    No se han detectado satélites
   </div>
 </div>

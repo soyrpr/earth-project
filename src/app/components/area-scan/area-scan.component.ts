@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ElementRef, ViewChild } from '@angular/core';
+import { Component, OnInit, OnDestroy, ElementRef, ViewChild, Renderer2 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AreaScanService } from '../../services/area-scan.service';
 import { SceneManager } from '../../../core/scene.manager';
@@ -9,6 +9,10 @@ import { GlobeService } from '../../services/globe.service';
 interface Satellite {
   name: string;
   norad_cat_id: string;
+  position?: {
+    lat: number;
+    lon: number;
+  };
 }
 
 @Component({
@@ -23,6 +27,7 @@ export class AreaScanComponent implements OnInit, OnDestroy {
   
   isVisible$;
   isScanning = false;
+  isDrawingMode = false;
   detectedSatellites: Satellite[] = [];
   private tempLine: Line | null = null;
   private permanentLine: Line | null = null;
@@ -33,7 +38,8 @@ export class AreaScanComponent implements OnInit, OnDestroy {
 
   constructor(
     private areaScanService: AreaScanService,
-    private globeService: GlobeService
+    private globeService: GlobeService,
+    private renderer: Renderer2
   ) {
     this.isVisible$ = this.areaScanService.isVisible$;
   }
@@ -55,28 +61,57 @@ export class AreaScanComponent implements OnInit, OnDestroy {
     this.subscription.unsubscribe();
   }
 
+  focusOnSatellite(satellite: Satellite) {
+    if (!satellite.position) return;
+
+    // Convertir lat/lon a coordenadas cartesianas
+    const phi = (90 - satellite.position.lat) * (Math.PI / 180);
+    const theta = (satellite.position.lon + 180) * (Math.PI / 180);
+    
+    const x = -Math.sin(phi) * Math.cos(theta);
+    const y = Math.cos(phi);
+    const z = Math.sin(phi) * Math.sin(theta);
+    
+    const position = new Vector3(x, y, z).multiplyScalar(SceneManager.earth!.getRadius() + 100);
+    
+    // Enfocar la cámara en el satélite
+    SceneManager.focusCameraOn(position);
+  }
+
   private setupDrawingMode() {
     const canvas = this.globeService.getCanvas();
     if (!canvas) return;
 
+    // Desactivar el control de la cámara
+    this.globeService.disableCameraControls();
+
+    // Agregar la clase drawing-mode al body
+    this.renderer.addClass(document.body, 'drawing-mode');
+
     canvas.addEventListener('mousedown', this.onMouseDown);
     canvas.addEventListener('mousemove', this.onMouseMove);
     canvas.addEventListener('mouseup', this.onMouseUp);
-    canvas.style.cursor = 'crosshair';
+    this.isDrawingMode = true;
   }
 
   private cleanupDrawingMode() {
     const canvas = this.globeService.getCanvas();
     if (!canvas) return;
 
+    // Reactivar el control de la cámara
+    this.globeService.enableCameraControls();
+
+    // Remover la clase drawing-mode del body
+    this.renderer.removeClass(document.body, 'drawing-mode');
+
     canvas.removeEventListener('mousedown', this.onMouseDown);
     canvas.removeEventListener('mousemove', this.onMouseMove);
     canvas.removeEventListener('mouseup', this.onMouseUp);
-    canvas.style.cursor = 'default';
     
     this.cleanupTempObjects();
     this.cleanupPermanentObjects();
     this.stopContinuousScan();
+    this.isDrawingMode = false;
   }
 
   private onMouseDown = (event: MouseEvent) => {
@@ -92,7 +127,9 @@ export class AreaScanComponent implements OnInit, OnDestroy {
 
     const intersects = raycaster.intersectObject(this.globeService.getGlobe());
     if (intersects.length > 0) {
-      this.startPoint = intersects[0].point;
+      console.log('Mouse down - Intersection point:', intersects[0].point);
+      this.startPoint = intersects[0].point.clone();
+      this.endPoint = this.startPoint.clone();
       this.createTempLine();
     }
   };
@@ -112,13 +149,14 @@ export class AreaScanComponent implements OnInit, OnDestroy {
 
     const intersects = raycaster.intersectObject(this.globeService.getGlobe());
     if (intersects.length > 0) {
-      this.endPoint = intersects[0].point;
+      this.endPoint = intersects[0].point.clone();
       this.updateTempLine();
     }
   };
 
   private onMouseUp = () => {
     if (this.startPoint && this.endPoint) {
+      console.log('Mouse up - Creating permanent line');
       this.createPermanentLine();
       this.startContinuousScan();
     }
@@ -130,10 +168,15 @@ export class AreaScanComponent implements OnInit, OnDestroy {
   private createTempLine() {
     if (!this.startPoint || !this.endPoint) return;
 
+    console.log('Creating temp line from', this.startPoint, 'to', this.endPoint);
     const geometry = new BufferGeometry().setFromPoints([this.startPoint, this.endPoint]);
-    const material = new LineBasicMaterial({ color: 0x00ff00 });
+    const material = new LineBasicMaterial({ 
+      color: 0x00ff00,
+      linewidth: 2
+    });
     this.tempLine = new Line(geometry, material);
     this.globeService.getScene().add(this.tempLine);
+    console.log('Temp line added to scene');
   }
 
   private updateTempLine() {
@@ -147,14 +190,20 @@ export class AreaScanComponent implements OnInit, OnDestroy {
   private createPermanentLine() {
     if (!this.startPoint || !this.endPoint) return;
 
+    console.log('Creating permanent line from', this.startPoint, 'to', this.endPoint);
     const geometry = new BufferGeometry().setFromPoints([this.startPoint, this.endPoint]);
-    const material = new LineBasicMaterial({ color: 0x00ff00 });
+    const material = new LineBasicMaterial({ 
+      color: 0x00ff00,
+      linewidth: 2
+    });
     this.permanentLine = new Line(geometry, material);
     this.globeService.getScene().add(this.permanentLine);
+    console.log('Permanent line added to scene');
   }
 
   private cleanupTempObjects() {
     if (this.tempLine) {
+      console.log('Cleaning up temp line');
       this.globeService.getScene().remove(this.tempLine);
       this.tempLine.geometry.dispose();
       (this.tempLine.material as LineBasicMaterial).dispose();
@@ -164,6 +213,7 @@ export class AreaScanComponent implements OnInit, OnDestroy {
 
   private cleanupPermanentObjects() {
     if (this.permanentLine) {
+      console.log('Cleaning up permanent line');
       this.globeService.getScene().remove(this.permanentLine);
       this.permanentLine.geometry.dispose();
       (this.permanentLine.material as LineBasicMaterial).dispose();
@@ -176,8 +226,13 @@ export class AreaScanComponent implements OnInit, OnDestroy {
 
     this.isScanning = true;
     this.updateInterval = setInterval(() => {
-      const startLat = this.cartesianToLatLon(this.startPoint!);
-      const endLat = this.cartesianToLatLon(this.endPoint!);
+      if (!this.startPoint || !this.endPoint) {
+        this.stopContinuousScan();
+        return;
+      }
+
+      const startLat = this.cartesianToLatLon(this.startPoint);
+      const endLat = this.cartesianToLatLon(this.endPoint);
       
       this.areaScanService.scanSatellitesOverLine(
         startLat.lat,
@@ -204,6 +259,11 @@ export class AreaScanComponent implements OnInit, OnDestroy {
   }
 
   private cartesianToLatLon(point: Vector3) {
+    if (!point) {
+      console.error('Point is null in cartesianToLatLon');
+      return { lat: 0, lon: 0 };
+    }
+
     const radius = Math.sqrt(point.x * point.x + point.y * point.y + point.z * point.z);
     const lat = Math.asin(point.y / radius) * (180 / Math.PI);
     const lon = Math.atan2(point.x, point.z) * (180 / Math.PI);

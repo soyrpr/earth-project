@@ -1,11 +1,11 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { SceneManager } from '../../../core/scene.manager';
-import { loadAndMergeSatelliteData } from '../../../../data/data-loader';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Vector3 } from 'three';
 import { SatelliteSearchService } from '../../services/satellite-search.service';
 import { Subscription } from 'rxjs';
+import { loadAndMergeSatelliteData } from '../../../assets/data/data-loader';
 
 @Component({
   selector: 'app-satellites',
