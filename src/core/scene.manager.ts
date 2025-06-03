@@ -13,6 +13,7 @@ import { Earth } from "./earth";
 import { SatelliteManager } from "./satellite";
 import { GLTFLoader, RenderPass, UnrealBloomPass } from "three/examples/jsm/Addons.js";
 import { RendererManager } from './renderer.manager'; // Ajusta la ruta según tu estructura
+import gsap from 'gsap';
 
 export class SceneManager {
   private static _scene: Scene | null = null;
@@ -30,6 +31,7 @@ export class SceneManager {
   private static selectedConnectionLine: Line | null = null;
 
   private static initialized = false;
+  static isSelectingFromSearch = false;
 
   private static frustum = new Frustum();
   private static cameraViewProjectionMatrix = new Matrix4();
@@ -60,10 +62,10 @@ export class SceneManager {
     this.satelliteManager = new SatelliteManager(this.earth);
 
     // await this.loadStarlinkModel();
-    await this.satelliteManager.loadSatellites(false);
+    await this.satelliteManager.loadSatellites(true);
 
-    window.addEventListener('click', this.onDocumentClick.bind(this));
-    window.addEventListener('resize', this.onWindowResize.bind(this));
+     window.addEventListener('click', this.onDocumentClick.bind(this));
+     window.addEventListener('resize', this.onWindowResize.bind(this));
   }
 
   private static onWindowResize(): void {
@@ -86,9 +88,8 @@ export class SceneManager {
       return;
     }
 
-    // Configuración del raycaster
     this.raycaster.near = 0.1;
-    this.raycaster.far = 1000;
+    this.raycaster.far = 500;
 
     const intersects = this.raycaster.intersectObject(instancedMesh);
 
@@ -108,6 +109,25 @@ export class SceneManager {
         const position = new Vector3();
         position.setFromMatrixPosition(matrix);
 
+        // Verificar si hay línea de visión directa entre la cámara y el satélite
+        const cameraToSatellite = position.clone().sub(this.camera.position);
+        const distance = cameraToSatellite.length();
+        const direction = cameraToSatellite.normalize();
+
+        // Crear un raycaster desde la cámara hacia el satélite
+        const visibilityRaycaster = new Raycaster(this.camera.position, direction);
+        visibilityRaycaster.near = 0.1;
+        visibilityRaycaster.far = distance;
+
+        // Verificar si el rayo intersecta con la Tierra
+        const earthIntersects = visibilityRaycaster.intersectObject(this.earth!.getMesh());
+        
+        // Si hay intersección con la Tierra y está más cerca que el satélite, el satélite está oculto
+        if (earthIntersects.length > 0 && earthIntersects[0].distance < distance) {
+          this.hideSatelliteInfo();
+          return;
+        }
+
         this.selectedSatellitePosition = position;
         this.showSatelliteInfoFromData(satData, instanceId);
 
@@ -121,7 +141,6 @@ export class SceneManager {
 
   public static showSatelliteInfoFromData(satData: any, instanceId: number): void {
     if (!satData) return;
-
     const position = satData.position;
     const lat = Math.atan2(position.z, Math.sqrt(position.x * position.x + position.y * position.y));
     const lon = Math.atan2(position.y, position.x);
@@ -129,7 +148,6 @@ export class SceneManager {
     const { orbitType } = this.satelliteManager!.getOrbitTypeAndColor(satData.position);
     const altitude = satData.altitude;
 
-    // Función auxiliar para formatear números
     const formatNumber = (value: any, decimals: number = 2): string => {
       if (typeof value === 'number') {
         return value.toFixed(decimals);
@@ -140,14 +158,10 @@ export class SceneManager {
     const info: Record<string, string> = {
       'Nombre': satData.name,
       'ID': satData.id,
-      'Tipo de Órbita': orbitType,
       'Altitud': `${formatNumber(altitude)} km`,
       'Latitud': this.formatCoordinate(lat * (180 / Math.PI), 'N', 'S'),
       'Longitud': this.formatCoordinate(lon * (180 / Math.PI), 'E', 'W'),
     };
-    if (satData.orbital?.velocity != null) {
-      info['Velocidad Orbital'] = `${formatNumber(satData.orbital.velocity)} km/s`;
-    }
     if (satData.orbital?.period != null) {
       info['Período'] = `${formatNumber(satData.orbital.period)} min`;
     }
@@ -157,7 +171,7 @@ export class SceneManager {
     if (satData.orbital?.apogee != null) {
       info['Apogeo'] = `${formatNumber(satData.orbital.apogee)} km`;
     }
-    if (satData.orbital?.perigee != null) {
+    if (satData.orbital?.perigee != null ) {
       info['Perigeo'] = `${formatNumber(satData.orbital.perigee)} km`;
     }
 
@@ -165,30 +179,28 @@ export class SceneManager {
       .map(([key, value]) => `<div><strong>${key}:</strong> ${value}</div>`)
       .join('');
 
-    const infoElement = document.getElementById('satellite-info') ||
-                       document.getElementById('satellite-info-box') ||
-                       document.getElementById('info-panel');
+    let infoElement = document.getElementById('satellite-info') ||
+                     document.getElementById('satellite-info-box') ||
+                     document.getElementById('info-panel');
 
-    if (infoElement) {
-      infoElement.innerHTML = infoHtml;
-      infoElement.style.display = 'block';
-    } else {
-      console.error('No se encontró el elemento para mostrar la información del satélite');
-
-      const newInfoElement = document.createElement('div');
-      newInfoElement.id = 'satellite-info';
-      newInfoElement.style.position = 'absolute';
-      newInfoElement.style.top = '20px';
-      newInfoElement.style.right = '20px';
-      newInfoElement.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
-      newInfoElement.style.color = 'white';
-      newInfoElement.style.padding = '15px';
-      newInfoElement.style.borderRadius = '5px';
-      newInfoElement.style.fontFamily = 'Arial, sans-serif';
-      newInfoElement.style.zIndex = '1000';
-      newInfoElement.innerHTML = infoHtml;
-      document.body.appendChild(newInfoElement);
+    if (!infoElement) {
+      infoElement = document.createElement('div');
+      infoElement.id = 'satellite-info-box';
+      infoElement.className = 'satellite-info-box';
+      document.body.appendChild(infoElement);
     }
+
+    infoElement.style.display = 'block';
+    infoElement.style.position = 'absolute';
+    infoElement.style.top = '170px';
+    infoElement.style.left = '20px';
+    infoElement.style.backgroundColor = '#333446';
+    infoElement.style.color = '#EAEFEF';
+    infoElement.style.padding = '15px';
+    infoElement.style.borderRadius = '10px';
+    infoElement.style.zIndex = '1000';
+    infoElement.style.maxWidth = '300px';
+    infoElement.innerHTML = infoHtml;
 
     if (this.selectedOrbitLine) {
       this.selectedOrbitLine.geometry.dispose();
@@ -236,7 +248,7 @@ export class SceneManager {
     }
   }
 
-  private static hideSatelliteInfo(): void {
+  public static hideSatelliteInfo(): void {
     const infoElement = document.getElementById('satellite-info') ||
                        document.getElementById('satellite-info-box') ||
                        document.getElementById('info-panel');
@@ -245,7 +257,6 @@ export class SceneManager {
       infoElement.style.display = 'none';
     }
 
-    // Limpiar líneas cuando se oculta la información
     if (this.selectedOrbitLine) {
       this.selectedOrbitLine.geometry.dispose();
       (this.selectedOrbitLine.material as MeshBasicMaterial).dispose();
@@ -319,25 +330,40 @@ export class SceneManager {
     this.composer?.render();
   }
 
-  static focusCameraOn(targetPosition: Vector3): void {
+  static focusCameraOn(targetPosition: Vector3, cameraOffset?: Vector3): void {
     if (!this.camera) return;
-
-    // Define un offset para la cámara (por ejemplo, 50 unidades en Z)
-    const cameraOffset = new Vector3(0, 0, 50);
-
-    // Nueva posición de la cámara = posición objetivo + offset
-    const newCameraPos = targetPosition.clone().add(cameraOffset);
-
-    // Mueve la cámara a esa nueva posición
-    this.camera.position.copy(newCameraPos);
-
-    // Actualiza el target de los controles OrbitControls para que mire a targetPosition
-    if (RendererManager.controls) {
-      RendererManager.controls.target.copy(targetPosition);
-      RendererManager.controls.update();
-    }
+  
+    // Dirección por defecto desde fuera hacia el objetivo
+    const defaultDirection = targetPosition.clone().normalize().negate();
+  
+    // Si se pasa un offset, se usa como desplazamiento relativo al objetivo
+    const finalOffset = cameraOffset
+      ? cameraOffset.clone()
+      : defaultDirection.multiplyScalar(30); // 30 unidades desde el objetivo
+  
+    const newCameraPosition = targetPosition.clone().add(finalOffset);
+  
+    // Clona la posición y dirección actuales para interpolar
+    const startPosition = this.camera.position.clone();
+    const startLookAt = new Vector3();
+    this.camera.getWorldDirection(startLookAt).add(this.camera.position);
+  
+    // Duración de la animación en segundos
+    const duration = 1.2;
+  
+    // Animación con GSAP (suave y sin bloqueos)
+    gsap.to(this.camera.position, {
+      x: newCameraPosition.x,
+      y: newCameraPosition.z,
+      z: newCameraPosition.y,
+      duration,
+      ease: 'power2.out',
+      onUpdate: () => {
+        this.camera.lookAt(targetPosition);
+      }
+    });
   }
-
+  
   public static async focusCameraOnSatelliteById(id: string): Promise<void> {
     if (!this.satelliteManager) return;
 
@@ -348,7 +374,16 @@ export class SceneManager {
     }
 
     if (satObj) {
-      this.focusCameraOn(satObj.position);
+      // Obtener la posición actual del satélite
+      const satellitePosition = satObj.position.clone();
+      
+      // Calcular la posición de la cámara para una mejor visualización
+      const cameraDistance = 50; // Distancia fija para mejor visualización
+      const cameraOffset = satellitePosition.clone().add(
+        satellitePosition.clone().normalize().multiplyScalar(cameraDistance)
+      );
+      
+      this.focusCameraOn(satellitePosition, cameraOffset);
     } else {
       console.warn(`No se pudo enfocar cámara en satélite con ID ${id}`);
     }

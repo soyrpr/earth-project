@@ -31,7 +31,11 @@ export class Earth {
     });
 
     this.earthMesh = new Mesh(geometry, shaderMaterial);
-    this.scene.add(this.earthMesh);  // añadir la Tierra a la escena
+    this.scene.add(this.earthMesh);
+    return this.earthMesh;
+  }
+
+  public getMesh(): Mesh {
     return this.earthMesh;
   }
 

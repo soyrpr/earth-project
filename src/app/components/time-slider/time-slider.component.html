@@ -1,12 +1,50 @@
-<div class="time-container">
-  <div class="speed-controls">
-    <button (click)="setTimeSpeed(1)">1x</button>
-    <button (click)="setTimeSpeed(10)">10x</button>
-    <button (click)="setTimeSpeed(60)">60x</button>
+<head>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+</head>
+
+<div class="time-slider" *ngIf="showControls" (click)="$event.stopPropagation()">
+  <div class="content-wrapper">
+    <p><strong>Hora simulada:</strong> {{ simulatedTime | date: 'medium' }}</p>
+
+    <label for="datetimePicker">Seleccionar fecha y hora:</label>
+    <input
+      id="datetimePicker"
+      type="datetime-local"
+      [value]="getDatetimeLocalValue()"
+      (change)="onDateTimeChange($event)"
+    />
+
+    <p>Velocidad de simulación:</p>
+    <div class="speed-controls">
+      <input
+        type="range"
+        [min]="1"
+        [max]="getMaxForUnit(speedUnit)"
+        [(ngModel)]="speedAmount"
+        (input)="onSpeedChange()"
+      />
+      <select [(ngModel)]="speedUnit" (change)="onSpeedChange()">
+        <option value="seconds">Segundos</option>
+        <option value="minutes">Minutos</option>
+        <option value="hours">Horas</option>
+        <option value="days">Días</option>
+      </select>
+      <span>{{ getFormattedSpeed() }}</span>
+    </div>
+
+    <div class="controls">
+    <button (click)="toggleSimulation()">
+      <span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 4px;">
+        {{ isSimulating ? 'pause' : 'play_arrow' }}
+      </span>
+      {{ isSimulating ? 'Pausar' : 'Reanudar' }}
+    </button>
+    <button (click)="toggleDirection()">
+      <span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 4px;">
+        {{ timeDirection === 1 ? 'update' : 'history' }}
+      </span>
+      {{ timeDirection === 1 ? 'Avanzando en el tiempo' : 'Retrocediendo en el tiempo' }}
+    </button>
+    </div>
   </div>
-  <input type="range" min="-1440" max="1440" [(ngModel)]="minutesOffset" (input)="onTimeChange()"
-  (mouseup)="onSliderRelease()"
-  (touchend)="onSliderRelease()" />
-  <p>Hora simulada: {{ simulatedTime | date:'HH:mm:ss' }}</p>
-  <p>Velocidad: {{ timeSpeed }}x</p>
 </div>

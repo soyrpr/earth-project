@@ -56,43 +56,63 @@ export async function loadAndMergeSatelliteData(): Promise<MergedSatelliteData[]
       tleResponse.json(),
     ]);
 
-    // Crear un mapa de los datos de información y orbital por norad_cat_id
+    // Crear mapas por norad_cat_id
     const infoMap = new Map<string, SatelliteInfo>();
     infoData.forEach(info => infoMap.set(info.norad_cat_id, info));
 
-    const orbitalMap = new Map<string, SatelliteOrbitalParam>();
-orbitalData.forEach(orbital => {
-  const noradId = orbital.id; // Asumimos que 'id' es realmente 'norad_cat_id'
-  if (noradId) {
-    orbitalMap.set(noradId, {
-      ...orbital,
-      norad_cat_id: noradId // Añadimos el campo esperado
-    });
-  } else {
-    console.warn('norad_cat_id no definido para:', orbital);
-  }
-});
+  const orbitalMap = new Map<string, SatelliteOrbitalParam>();
+  orbitalData.forEach(orbital => {
+    const noradId = orbital.norad_cat_id ?? orbital.id;
+    if (noradId) orbitalMap.set(noradId, orbital);
+  });
 
-    // Función para extraer el norad_cat_id desde el TLE (si no se encuentra, devuelve un valor por defecto)
-    function extractNoradId(tleLine1: string): string {
-      return tleLine1.substring(2, 7).trim();
+    const tleMap = new Map<string, SatelliteTLE>();
+    tleData.forEach(tle => {
+      const noradId = tle.id;
+      if (noradId) {
+        tleMap.set(noradId, {
+          ...tle,
+          norad_cat_id: noradId,
+        });
+      } else {
+        console.warn('norad_cat_id no definido para TLE:', tle);
+      }
+    });
+
+    // Fusionar todos los datos
+    const mergedSatellites: MergedSatelliteData[] = [];
+    let discardedCount = 0;
+
+    for (const norad_cat_id of infoMap.keys()) {
+      const info = infoMap.get(norad_cat_id);
+      const orbital = orbitalMap.get(norad_cat_id);
+      const tle = tleMap.get(norad_cat_id);
+
+      if (info && orbital && tle && tle.tle_line_1 && tle.tle_line_2) {
+        mergedSatellites.push({
+          norad_cat_id,
+          tle_line_1: tle.tle_line_1,
+          tle_line_2: tle.tle_line_2,
+          info,
+          orbital,
+        });
+      } else {
+        discardedCount++;
+        // console.warn(`Datos incompletos para el satélite ${norad_cat_id}:`, {
+        //   info: !!info,
+        //   orbital: !!orbital,
+        //   tle: !!tle,
+        //   tle_line_1: tle?.tle_line_1 ?? 'no definido',
+        //   tle_line_2: tle?.tle_line_2 ?? 'no definido',
+        // });
+      }
     }
 
-    // Crear los datos fusionados
-    const mergedData: MergedSatelliteData[] = tleData.map((tle) => {
-      const noradId = extractNoradId(tle.tle_line_1);
-      return {
-        norad_cat_id: noradId,
-        tle_line_1: tle.tle_line_1,
-        tle_line_2: tle.tle_line_2,
-        info: infoMap.get(noradId), // Buscar en el mapa de información
-        orbital: orbitalMap.get(noradId), // Buscar en el mapa orbital
-      };
-    });
+    console.log(`Satélites descartados por datos incompletos: ${discardedCount}`);
 
-    return mergedData;
+    return mergedSatellites;
   } catch (error) {
-    console.error('Error al cargar o fusionar los datos de los satélites:', error);
+    console.error('Error al cargar y fusionar datos de satélites:', error);
     return [];
   }
 }

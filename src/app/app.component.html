@@ -2,7 +2,8 @@
 <app-satellites></app-satellites>
 <app-time-slider></app-time-slider>
 
-<div id="satellite-info-box">
+
+<div id="satellite-info-box" (click)="$event.stopPropagation()"">
   <h3 id="satellite-name">Nombre del Satélite</h3>
   <p><strong>Perigeo (km):</strong> <span id="perigee"></span></p>
   <p><strong>Apogeo (km):</strong> <span id="apogee"></span></p>

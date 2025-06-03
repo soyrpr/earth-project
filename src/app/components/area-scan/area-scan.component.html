@@ -1,0 +1,16 @@
+<div class="area-scan-container" *ngIf="isVisible$ | async">
+  <h2>Dibujo de Área</h2>
+  
+  <div class="instructions">
+    <p>Haz clic en el globo para dibujar un círculo del tamaño de España.</p>
+  </div>
+
+  <div class="satellite-list" *ngIf="isDrawingMode">
+    <h3>Satélites detectados</h3>
+    <ul>
+      <li *ngFor="let satellite of detectedSatellites">
+        {{ satellite.name }} (NORAD: {{ satellite.norad_cat_id }})
+      </li>
+    </ul>
+  </div>
+</div>
