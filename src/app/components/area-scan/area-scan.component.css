@@ -22,7 +22,7 @@
 }
 
 .area-scan-container h2::before {
-  content: '✏️';
+  content: '';
   font-size: 1.4rem;
 }
 

@@ -24,7 +24,7 @@ interface Satellite {
 })
 export class AreaScanComponent implements OnInit, OnDestroy {
   @ViewChild('container') container!: ElementRef;
-  
+
   isVisible$;
   isScanning = false;
   isDrawingMode = false;
@@ -107,7 +107,8 @@ export class AreaScanComponent implements OnInit, OnDestroy {
     canvas.removeEventListener('mousedown', this.onMouseDown);
     canvas.removeEventListener('mousemove', this.onMouseMove);
     canvas.removeEventListener('mouseup', this.onMouseUp);
-    
+    canvas.style.cursor = 'default';
+
     this.cleanupTempObjects();
     this.cleanupPermanentObjects();
     this.stopContinuousScan();
@@ -240,7 +241,6 @@ export class AreaScanComponent implements OnInit, OnDestroy {
         endLat.lat,
         endLat.lon
       ).subscribe((newSatellites: Satellite[]) => {
-        // Agregar solo los satélites nuevos que no estén ya en la lista
         newSatellites.forEach(sat => {
           if (!this.detectedSatellites.some(existing => existing.norad_cat_id === sat.norad_cat_id)) {
             this.detectedSatellites.push(sat);
