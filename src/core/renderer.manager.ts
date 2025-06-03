@@ -2,9 +2,7 @@ import { PCFSoftShadowMap, WebGLRenderer } from "three";
 import { SceneManager } from "./scene.manager";
 import { EffectComposer, OrbitControls } from "three/examples/jsm/Addons.js";
 
-
 export class RendererManager {
-
   private static renderer: WebGLRenderer;
   public static canvas: HTMLCanvasElement;
   private static composer: EffectComposer;
@@ -22,8 +20,11 @@ export class RendererManager {
   }
 
   private static getCanvas(): void {
-    RendererManager.canvas = document.getElementById('globeCanvas') as HTMLCanvasElement;
-    if (!RendererManager.canvas) console.error("Canvas no encontrado");
+    const canvas = document.getElementById('globeCanvas') as HTMLCanvasElement;
+    if (!canvas) {
+      throw new Error('Canvas element not found');
+    }
+    RendererManager.canvas = canvas;
   }
 
   private static createRenderer(): void {
@@ -33,16 +34,16 @@ export class RendererManager {
     RendererManager.renderer.setSize(window.innerWidth, window.innerHeight);
     RendererManager.renderer.toneMapping = 2;
     RendererManager.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = PCFSoftShadowMap;
+    RendererManager.renderer.shadowMap.type = PCFSoftShadowMap;
 
-  if (!RendererManager.controls) {
-    RendererManager.controls = new OrbitControls(SceneManager.camera!, RendererManager.renderer.domElement);
-    RendererManager.controls.enableDamping = true;
-    RendererManager.controls.dampingFactor = 0.25;
-    RendererManager.controls.enableZoom = true;
-    RendererManager.controls.minDistance = 35;
-    RendererManager.controls.maxDistance = 700;
-  }
+    if (!RendererManager.controls) {
+      RendererManager.controls = new OrbitControls(SceneManager.camera!, RendererManager.renderer.domElement);
+      RendererManager.controls.enableDamping = true;
+      RendererManager.controls.dampingFactor = 0.25;
+      RendererManager.controls.enableZoom = true;
+      RendererManager.controls.minDistance = 35;
+      RendererManager.controls.maxDistance = 700;
+    }
   }
 
   private static renderLoop(): void {
@@ -56,18 +57,13 @@ export class RendererManager {
     }
   }
 
-
   public static start(): void {
     SceneManager.init();
     RendererManager.init();
   }
 
-  public static getRenderer(): WebGLRenderer {
-    return RendererManager.renderer;
-  }
-
   public static handleResize(): void {
-    window.addEventListener('resize', ()=> {
+    window.addEventListener('resize', () => {
       const width = window.innerWidth;
       const height = window.innerHeight;
 
@@ -76,5 +72,13 @@ export class RendererManager {
 
       RendererManager.renderer.setSize(width, height);
     });
+  }
+
+  public static forceRender(): void {
+    if (RendererManager.composer) {
+      RendererManager.composer.render();
+    } else {
+      RendererManager.renderer.render(SceneManager.scene!, SceneManager.camera!);
+    }
   }
 }

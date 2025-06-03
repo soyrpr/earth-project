@@ -2,10 +2,13 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 import { SceneManager } from '../../../core/scene.manager';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Vector3 } from 'three';
+import { Vector3, Object3D, Mesh, MeshBasicMaterial, SphereGeometry } from 'three';
 import { SatelliteSearchService } from '../../services/satellite-search.service';
 import { Subscription } from 'rxjs';
 import { loadAndMergeSatelliteData } from '../../../assets/data/data-loader';
+import { RendererManager } from '../../../core/renderer.manager';
+import { Color } from 'three';
+import { HostListener } from '@angular/core';
 
 @Component({
   selector: 'app-satellites',
@@ -26,6 +29,7 @@ export class SatellitesComponent implements OnInit, OnDestroy {
   visibleSatellitesData: any[] = [];
   isSearchVisible = false;
   private searchSubscription: Subscription | null = null;
+  private selectedSatellite: any = null;
 
   orbitTypes = ['LEO', 'MEO', 'GEO'];
   specialTypes = ['Starlink', 'Galileo'];
@@ -83,21 +87,25 @@ export class SatellitesComponent implements OnInit, OnDestroy {
       const query = this.searchText.trim().toLowerCase();
 
       if (query === '') {
-        this.searchResults = this.visibleSatellitesData;
+        // Solo mostrar satélites que están renderizados
+        this.searchResults = this.visibleSatellitesData.filter((sat: any) => {
+          const id = sat.norad_cat_id?.toString();
+          return id && SceneManager.satelliteManager?.isSatelliteLoaded(id);
+        });
         this.searchStatus = 'ready';
         return;
       }
 
       this.searchResults = this.visibleSatellitesData.filter((sat: any) => {
         const name = (sat.info?.satname ?? '').toLowerCase();
-        return name.includes(query);
+        const id = sat.norad_cat_id?.toString();
+        return name.includes(query) && id && SceneManager.satelliteManager?.isSatelliteLoaded(id);
       });
 
       if (this.searchResults.length === 0) {
         this.searchStatus = 'not-found';
       } else {
         this.searchStatus = 'ready';
-        await SceneManager.satelliteManager?.loadSatellitesFiltered(this.searchResults, this.currentDate);
       }
     } catch (err) {
       console.error(err);
@@ -134,64 +142,87 @@ export class SatellitesComponent implements OnInit, OnDestroy {
     }
 
     try {
-      await satManager.loadSatellitesFiltered([satData], this.currentDate);
-
-      const positionEci = satManager.calculateSatellitePositionEci(satData);
-      const earthRadius = 6371; // km
-      const scaleFactor = 30 / earthRadius;
-
-      let altitudeKm = 0;
-      let orbitInfo: {
-        semiMajorAxis?: string;
-        period?: string;
-        meanMotion?: string;
-        altitude?: string;
-      } = {};
-
-      if (satData.satrec) {
-        const GM = 398600.4418; // km^3/s^2
-        const n = satData.satrec.no * 60; // rev/hour
-        const T = 24 / n; // hours
-        const a = Math.pow((GM * Math.pow(T * 3600, 2)) / (4 * Math.pow(Math.PI, 2)), 1 / 3); // km
-
-        altitudeKm = a - earthRadius;
-
-        orbitInfo = {
-          semiMajorAxis: a.toFixed(2),
-          period: T.toFixed(2),
-          meanMotion: n.toFixed(6),
-          altitude: altitudeKm.toFixed(2),
-        };
+      // Si ya está seleccionado este satélite, no hacer nada
+      if (this.selectedSatellite?.norad_cat_id === satData.norad_cat_id) {
+        return;
       }
 
-      const position = new Vector3(
-        positionEci.x * scaleFactor,
-        positionEci.z * scaleFactor, // Swap Y and Z for Three.js coordinates
-        positionEci.y * scaleFactor
+      // Si hay un satélite previamente seleccionado, eliminar su mesh temporal
+      if (this.selectedSatellite) {
+        const prevId = this.selectedSatellite.norad_cat_id;
+        const prevMesh = satManager.getTemporaryMesh(prevId);
+        if (prevMesh) {
+          SceneManager.scene.remove(prevMesh);
+          satManager.removeTemporaryMesh(prevId);
+        }
+      }
+
+      // Guardar el nuevo satélite seleccionado
+      this.selectedSatellite = satData;
+
+      // Verificar si el satélite tiene datos TLE
+      if (!satData.tle_line_1 || !satData.tle_line_2) {
+        this.errorMessage = `El satélite ${satData.info?.satname || id} no tiene datos de órbita (TLE) disponibles.`;
+        this.searchStatus = 'error';
+        return;
+      }
+
+      // Obtener la posición actual del satélite usando el SatelliteManager
+      let positionEci;
+      try {
+        positionEci = satManager.calculateSatellitePositionEci(satData);
+      } catch (error: any) {
+        if (error.message.includes('Failed to propagate')) {
+          this.errorMessage = `No se pudo calcular la posición actual del satélite ${satData.info?.satname || id}. Los datos TLE pueden estar desactualizados.`;
+        } else if (error.message.includes('Invalid TLE format')) {
+          this.errorMessage = `Los datos de órbita (TLE) del satélite ${satData.info?.satname || id} tienen un formato inválido.`;
+        } else {
+          this.errorMessage = `Error al calcular la posición del satélite: ${error.message}`;
+        }
+        this.searchStatus = 'error';
+        return;
+      }
+      
+      // Calcular la posición del satélite en el espacio 3D
+      const satellitePosition = new Vector3(
+        positionEci.x,
+        positionEci.z,
+        positionEci.y
+      );
+
+      // Crear un mesh temporal para el satélite seleccionado
+      const geometry = new SphereGeometry(0.3); // Un poco más grande que el instanced mesh
+      const material = new MeshBasicMaterial({
+        color: 0xDAA520, // Goldenrod
+        transparent: true,
+        opacity: 0.8
+      });
+      const tempMesh = new Mesh(geometry, material);
+      tempMesh.position.copy(satellitePosition);
+      SceneManager.scene.add(tempMesh);
+      satManager.addTemporaryMesh(id, tempMesh);
+
+      // Calcular la posición de la cámara para una mejor visualización
+      const cameraDistance = 20; // Reducida la distancia para estar más cerca del satélite
+      const cameraOffset = satellitePosition.clone().add(
+        satellitePosition.clone().normalize().multiplyScalar(cameraDistance)
       );
 
       const meshData = {
         id: satData.norad_cat_id,
-        tleLine1: satData.tleLine1,
-        tleLine2: satData.tleLine2,
+        tleLine1: satData.tle_line_1,
+        tleLine2: satData.tle_line_2,
         name: satData.info?.satname || satData.name,
         info: {
           ...satData.info,
-          ...orbitInfo,
           position: {
             x: positionEci.x.toFixed(2),
-            y: positionEci.y.toFixed(2),
-            z: positionEci.z.toFixed(2),
+            y: positionEci.z.toFixed(2),
+            z: positionEci.y.toFixed(2),
           },
         },
-        orbital: satData.orbital || {
-          semiMajorAxis: orbitInfo.semiMajorAxis ? parseFloat(orbitInfo.semiMajorAxis) : 0,
-          period: orbitInfo.period ? parseFloat(orbitInfo.period) : 0,
-          meanMotion: orbitInfo.meanMotion ? parseFloat(orbitInfo.meanMotion) : 0,
-          orbitType:
-            altitudeKm < 2000 ? 'LEO' : altitudeKm < 35787 ? 'MEO' : 'GEO',
-        },
-        position,
+        orbital: satData.orbital,
+        position: satellitePosition,
       };
 
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -200,16 +231,77 @@ export class SatellitesComponent implements OnInit, OnDestroy {
       const numericId = Number(id);
 
       SceneManager.showSatelliteInfoFromData(meshData, numericId);
-      await SceneManager.focusCameraOnSatelliteById(id);
+      
+      // Animar la cámara hasta el satélite
+      const camera = SceneManager.camera;
+      const controls = RendererManager.controls;
+      if (camera && controls) {
+        const startPosition = camera.position.clone();
+        const startTarget = controls.target.clone();
+        const duration = 1000; // duración de la animación en ms
+        const startTime = Date.now();
+
+        const animate = () => {
+          const elapsed = Date.now() - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+          
+          // Función de easing para suavizar la animación
+          const easeProgress = 1 - Math.pow(1 - progress, 3);
+
+          // Interpolar la posición de la cámara
+          camera.position.lerpVectors(startPosition, cameraOffset, easeProgress);
+          
+          // Interpolar el punto de mira
+          controls.target.lerpVectors(startTarget, satellitePosition, easeProgress);
+          
+          // Actualizar los controles
+          controls.update();
+
+          if (progress < 1) {
+            requestAnimationFrame(animate);
+          }
+        };
+
+        // Desactivar temporalmente los controles durante la animación
+        controls.enabled = false;
+        animate();
+        
+        // Reactivar los controles después de la animación
+        setTimeout(() => {
+          controls.enabled = true;
+        }, duration);
+      }
+      
       this.selectedSatelliteId = numericId;
 
       setTimeout(() => {
         SceneManager.isSelectingFromSearch = false;
       }, 500);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al calcular la posición del satélite:', error);
-      this.errorMessage = 'Error al calcular la posición del satélite';
+      this.errorMessage = `Error al calcular la posición del satélite: ${error.message}`;
       this.searchStatus = 'error';
+    }
+  }
+
+  @HostListener('document:contextmenu', ['$event'])
+  onRightClick(event: MouseEvent) {
+    if (this.selectedSatellite) {
+      // Eliminar el mesh temporal del satélite seleccionado
+      const satManager = SceneManager.satelliteManager;
+      if (satManager) {
+        const id = this.selectedSatellite.norad_cat_id;
+        const tempMesh = satManager.getTemporaryMesh(id);
+        if (tempMesh) {
+          SceneManager.scene.remove(tempMesh);
+          satManager.removeTemporaryMesh(id);
+        }
+      }
+
+      // Limpiar la selección
+      this.selectedSatellite = null;
+      this.selectedSatelliteId = null;
+      SceneManager.hideSatelliteInfo();
     }
   }
 
