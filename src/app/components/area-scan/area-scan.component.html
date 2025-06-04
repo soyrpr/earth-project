@@ -5,11 +5,12 @@
     <p>Haz clic en el globo para dibujar un círculo del tamaño de España.</p>
   </div>
 
-  <div class="satellite-list" *ngIf="isDrawingMode">
+  <div class="satellite-list" *ngIf="detectedSatellites.length > 0">
     <h3>Satélites detectados</h3>
     <ul>
-      <li *ngFor="let satellite of detectedSatellites">
+      <li *ngFor="let satellite of detectedSatellites" [class.in-zone]="satellite.isInZone">
         {{ satellite.name }} (NORAD: {{ satellite.norad_cat_id }})
+        <span class="time-spent">Tiempo en zona: {{ satellite.formattedTime }}</span>
       </li>
     </ul>
   </div>

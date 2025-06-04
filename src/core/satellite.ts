@@ -1182,4 +1182,8 @@ export class SatelliteManager {
     }
     this.temporaryMeshes.clear();
   }
+
+  public getCurrentDate(): Date {
+    return this.currentDate;
+  }
 }

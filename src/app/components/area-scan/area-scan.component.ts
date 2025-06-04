@@ -7,6 +7,7 @@ import { Subscription } from 'rxjs';
 import { GlobeService } from '../../services/globe.service';
 import { RendererManager } from '../../../core/renderer.manager';
 import * as satellite from 'satellite.js';
+import { TimeSliderService } from '../../services/time-slider.service';
 
 @Component({
   selector: 'app-area-scan',
@@ -29,18 +30,23 @@ export class AreaScanComponent implements OnInit, OnDestroy {
   private animationFrameId: number | null = null;
   private detectionMeshes: Mesh[] = [];
   private lastCheckTime = 0;
-  private readonly CHECK_INTERVAL = 500; // Check every 500ms instead of every frame
+  private readonly CHECK_INTERVAL = 1000; // Check every second
   private detectionCircle: Mesh | null = null;
   private detectionArea: Mesh | null = null;
   private raycaster: Raycaster = new Raycaster();
   private detectionCylinder: Mesh | null = null;
+  private satelliteEntryTimes: Map<string, number> = new Map();
+  private satelliteTotalTimes: Map<string, number> = new Map();
 
   constructor(
     private areaScanService: AreaScanService,
     private globeService: GlobeService,
-    private renderer: Renderer2
+    private renderer: Renderer2,
+    private timeSliderService: TimeSliderService
   ) {
     this.isVisible$ = this.areaScanService.isVisible$;
+    // Recuperar los tiempos totales guardados
+    this.satelliteTotalTimes = this.areaScanService.getSatelliteTotalTimes();
   }
 
   ngOnInit() {
@@ -51,6 +57,16 @@ export class AreaScanComponent implements OnInit, OnDestroy {
         } else {
           this.cleanupDrawingMode();
         }
+      })
+    );
+
+    // Suscribirse a los satélites detectados
+    this.subscription.add(
+      this.areaScanService.detectedSatellites$.subscribe(satellites => {
+        this.detectedSatellites = satellites.map(sat => ({
+          ...sat,
+          formattedTime: this.formatTimeSpent(sat.totalTime)
+        }));
       })
     );
   }
@@ -84,7 +100,6 @@ export class AreaScanComponent implements OnInit, OnDestroy {
   private startAnimation() {
     const animate = () => {
       if (this.isDrawingMode && this.centerPoint) {
-        console.log('Running detection check...');
         this.checkSatellitesInCircle();
       }
       this.animationFrameId = requestAnimationFrame(animate);
@@ -127,6 +142,14 @@ export class AreaScanComponent implements OnInit, OnDestroy {
       this.detectionCylinder = null;
     }
 
+    // Limpiar los meshes de detección
+    this.detectionMeshes.forEach(mesh => {
+      this.globeService.getScene().remove(mesh);
+      mesh.geometry.dispose();
+      (mesh.material as MeshBasicMaterial).dispose();
+    });
+    this.detectionMeshes = [];
+
     // Restaurar colores originales de los satélites
     this.originalSatelliteColors.forEach((color, noradId) => {
       const satelliteMeshes = SceneManager.satelliteManager?.getSatelliteMeshes();
@@ -142,9 +165,9 @@ export class AreaScanComponent implements OnInit, OnDestroy {
       }
     });
     this.originalSatelliteColors.clear();
-    this.detectedSatellites = [];
 
-    this.cleanupPermanentObjects();
+    // No limpiamos detectedSatellites ni satelliteTotalTimes aquí
+    this.satelliteEntryTimes.clear();
     this.isDrawingMode = false;
   }
 
@@ -310,9 +333,76 @@ export class AreaScanComponent implements OnInit, OnDestroy {
     this.globeService.getScene().add(this.detectionCylinder);
   }
 
+  private formatTimeSpent(seconds: number): string {
+    if (!seconds || isNaN(seconds)) {
+      return '0 seg';
+    }
+    
+    if (seconds < 60) {
+      return `${Math.floor(seconds)} seg`;
+    } else if (seconds < 3600) {
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = Math.floor(seconds % 60);
+      return `${minutes} min ${remainingSeconds} seg`;
+    } else {
+      const hours = Math.floor(seconds / 3600);
+      const remainingMinutes = Math.floor((seconds % 3600) / 60);
+      if (remainingMinutes === 0) {
+        return `${hours} h`;
+      }
+      return `${hours} h ${remainingMinutes} min`;
+    }
+  }
+
+  private updateSatelliteVisuals(detectedSatellites: any[]) {
+    // Limpiar los meshes de detección anteriores
+    this.detectionMeshes.forEach(mesh => {
+      this.globeService.getScene().remove(mesh);
+      mesh.geometry.dispose();
+      (mesh.material as MeshBasicMaterial).dispose();
+    });
+    this.detectionMeshes = [];
+
+    // Actualizar los satélites detectados en la escena
+    const instancedMeshes = SceneManager.satelliteManager?.getAllInstancedMeshes() || [];
+    const earthRadius = SceneManager.earth!.getRadius();
+
+    detectedSatellites.forEach(sat => {
+      const instancedMesh = instancedMeshes.find(mesh => 
+        mesh.userData?.['ids']?.includes(sat.norad_cat_id)
+      );
+
+      if (instancedMesh) {
+        const matrix = new Matrix4();
+        const position = new Vector3();
+        const quaternion = new Quaternion();
+        const scale = new Vector3();
+
+        const instanceIndex = instancedMesh.userData?.['ids']?.indexOf(sat.norad_cat_id);
+        if (instanceIndex !== undefined && instanceIndex !== -1) {
+          instancedMesh.getMatrixAt(instanceIndex, matrix);
+          matrix.decompose(position, quaternion, scale);
+
+          // Crear mesh de detección solo para satélites en la zona
+          if (sat.isInZone) {
+            const geometry = new SphereGeometry(earthRadius * 0.001, 16, 16);
+            const material = new MeshBasicMaterial({ 
+              color: this.DETECTION_COLOR,
+              transparent: true,
+              opacity: 0.8
+            });
+            const detectionMesh = new Mesh(geometry, material);
+            detectionMesh.position.copy(position);
+            this.globeService.getScene().add(detectionMesh);
+            this.detectionMeshes.push(detectionMesh);
+          }
+        }
+      }
+    });
+  }
+
   private checkSatellitesInCircle() {
     if (!this.centerPoint) {
-      console.log('No center point available');
       return;
     }
 
@@ -321,120 +411,33 @@ export class AreaScanComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Throttle checks
-    const now = Date.now();
-    if (now - this.lastCheckTime < this.CHECK_INTERVAL) {
-      return;
-    }
-    this.lastCheckTime = now;
-
     // Crear o actualizar el cilindro de detección
     this.createDetectionCylinder();
 
-    const detectedSatellites: any[] = [];
-    const satelliteData = SceneManager.satelliteManager.getAllSatellitesData();
-    const instancedMeshes = SceneManager.satelliteManager.getAllInstancedMeshes();
+    // Convertir la posición del centro a coordenadas geodésicas
     const earthRadius = SceneManager.earth!.getRadius();
-    const maxDistance = earthRadius * 0.02; // 2% del radio de la Tierra
+    const centerLat = Math.asin(this.centerPoint.y / earthRadius) * (180 / Math.PI);
+    const centerLon = Math.atan2(this.centerPoint.x, this.centerPoint.z) * (180 / Math.PI);
 
-    console.log('Starting detection with:', {
-      centerPoint: this.centerPoint.toArray(),
-      maxDistance,
-      totalSatellites: satelliteData.length,
-      totalInstancedMeshes: instancedMeshes.length
+    // Usar el servicio para escanear el área
+    const currentSimTime = this.timeSliderService.getSimulatedTime();
+    this.areaScanService.scanSatellitesOverArea(
+      { lat: centerLat, lon: centerLon },
+      2, // radio en grados
+      currentSimTime
+    ).subscribe(detectedSatellites => {
+      // Actualizar los satélites detectados
+      this.detectedSatellites = detectedSatellites.map(sat => ({
+        ...sat,
+        formattedTime: this.formatTimeSpent(sat.totalTime)
+      }));
+
+      // Actualizar los satélites en la escena
+      this.updateSatelliteVisuals(detectedSatellites);
+
+      // Guardar los tiempos actualizados
+      this.areaScanService.updateDetectedSatellites(this.detectedSatellites);
+      this.areaScanService.updateSatelliteTotalTimes(this.satelliteTotalTimes);
     });
-
-    // Clear previous detection meshes
-    this.detectionMeshes.forEach(mesh => {
-      this.globeService.getScene().remove(mesh);
-      mesh.geometry.dispose();
-      (mesh.material as MeshBasicMaterial).dispose();
-    });
-    this.detectionMeshes = [];
-
-    // Process each instanced mesh
-    for (const instancedMesh of instancedMeshes) {
-      // Verificar si el mesh está visible
-      if (!instancedMesh.visible) {
-        continue;
-      }
-
-      const matrix = new Matrix4();
-      const position = new Vector3();
-      const quaternion = new Quaternion();
-      const scale = new Vector3();
-
-      const instanceCount = instancedMesh.count;
-      console.log(`Processing visible instanced mesh with ${instanceCount} instances`);
-
-      for (let i = 0; i < instanceCount; i++) {
-        // Verificar si esta instancia específica está visible
-        const visible = instancedMesh.userData?.['visible']?.[i];
-        if (visible === false) {
-          continue;
-        }
-
-        instancedMesh.getMatrixAt(i, matrix);
-        matrix.decompose(position, quaternion, scale);
-
-        // Calcular la distancia horizontal al punto central
-        const toSatellite = position.clone().sub(this.centerPoint);
-        const upVector = this.centerPoint.clone().normalize();
-        const verticalDistance = toSatellite.dot(upVector);
-        const horizontalDistance = Math.sqrt(toSatellite.lengthSq() - verticalDistance * verticalDistance);
-
-        // Si está dentro del radio horizontal y por encima de la superficie
-        if (horizontalDistance <= maxDistance && verticalDistance > 0) {
-          const satelliteId = instancedMesh.userData?.['ids']?.[i];
-          if (satelliteId) {
-            const satData = satelliteData.find(s => s.norad_cat_id === satelliteId);
-            if (satData) {
-              const name = satData.info?.satname || `Satellite ${satelliteId}`;
-              
-              console.log(`Found visible satellite in cylinder:`, {
-                name,
-                noradId: satelliteId,
-                horizontalDistance,
-                verticalDistance,
-                position: position.toArray()
-              });
-
-              detectedSatellites.push({
-                name: name,
-                norad_cat_id: satelliteId,
-                position: position.clone(),
-                horizontalDistance,
-                verticalDistance
-              });
-
-              // Create detection mesh
-              const geometry = new SphereGeometry(earthRadius * 0.001, 16, 16);
-              const material = new MeshBasicMaterial({ 
-                color: this.DETECTION_COLOR,
-                transparent: true,
-                opacity: 0.8
-              });
-              const detectionMesh = new Mesh(geometry, material);
-              detectionMesh.position.copy(position);
-              this.globeService.getScene().add(detectionMesh);
-              this.detectionMeshes.push(detectionMesh);
-            }
-          }
-        }
-      }
-    }
-
-    // Ordenar los satélites por distancia horizontal
-    detectedSatellites.sort((a, b) => a.horizontalDistance - b.horizontalDistance);
-
-    console.log(`Detection complete. Found ${detectedSatellites.length} visible satellites:`, 
-      detectedSatellites.map(s => ({ 
-        name: s.name, 
-        noradId: s.norad_cat_id,
-        horizontalDistance: s.horizontalDistance,
-        verticalDistance: s.verticalDistance
-      }))
-    );
-    this.detectedSatellites = detectedSatellites;
   }
 }

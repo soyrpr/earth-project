@@ -12,7 +12,34 @@ export class AreaScanService {
   private isVisibleSubject = new BehaviorSubject<boolean>(false);
   isVisible$ = this.isVisibleSubject.asObservable();
 
-  constructor() {}
+  private detectedSatellitesSubject = new BehaviorSubject<any[]>([]);
+  detectedSatellites$ = this.detectedSatellitesSubject.asObservable();
+
+  private satelliteEntryTimes: Map<string, Date> = new Map(); // Tiempo de entrada en la simulación
+  private satelliteTotalTimes: Map<string, number> = new Map(); // Tiempo total acumulado en segundos
+  private allDetectedSatellites: Map<string, any> = new Map(); // Mantener todos los satélites detectados
+
+  constructor() {
+    // Recuperar los tiempos guardados al iniciar el servicio
+    try {
+      const savedTimes = sessionStorage.getItem('satelliteTotalTimes');
+      if (savedTimes) {
+        const timesObject = JSON.parse(savedTimes);
+        this.satelliteTotalTimes = new Map(Object.entries(timesObject));
+      }
+      const savedEntryTimes = sessionStorage.getItem('satelliteEntryTimes');
+      if (savedEntryTimes) {
+        const entryTimesObject = JSON.parse(savedEntryTimes);
+        // Convertir los timestamps guardados a objetos Date
+        this.satelliteEntryTimes = new Map(
+          Object.entries(entryTimesObject).map(([key, value]) => [key, new Date(value as number)])
+        );
+      }
+    } catch (error) {
+      this.satelliteTotalTimes = new Map();
+      this.satelliteEntryTimes = new Map();
+    }
+  }
 
   toggleVisibility() {
     this.isVisibleSubject.next(!this.isVisibleSubject.value);
@@ -26,19 +53,12 @@ export class AreaScanService {
     const satellites = SceneManager.satelliteManager?.getAllSatellitesData() || [];
     const results: any[] = [];
 
-    console.log('Starting scan with line:', {
-      start: { lat: startLat, lon: startLon },
-      end: { lat: endLat, lon: endLon }
-    });
-    console.log('Total satellites to check:', satellites.length);
-
     satellites.forEach(sat => {
       try {
         const satrec = satellite.twoline2satrec(sat.tle_line_1, sat.tle_line_2);
         const positionAndVelocity = satellite.propagate(satrec, date);
 
         if (!positionAndVelocity || !positionAndVelocity.position) {
-          console.log(`No position data for satellite ${sat.name}`);
           return;
         }
 
@@ -58,15 +78,8 @@ export class AreaScanService {
           { lat: endLat, lon: endLon }
         );
 
-        console.log(`Satellite ${sat.name}:`, {
-          position,
-          distance,
-          threshold: 2 // Threshold in degrees
-        });
-
         // Check if satellite is within detection range (2 degrees)
         if (distance < 2) {
-          console.log(`Detected satellite ${sat.name} with distance ${distance} degrees`);
           results.push({
             name: sat.name,
             norad_cat_id: sat.norad_cat_id,
@@ -74,11 +87,10 @@ export class AreaScanService {
           });
         }
       } catch (error) {
-        console.warn(`Error procesando satélite ${sat.name}`, error);
+        // Silently handle errors
       }
     });
 
-    console.log('Scan complete. Detected satellites:', results.length);
     return new Observable(subscriber => {
       subscriber.next(results);
       subscriber.complete();
@@ -153,19 +165,23 @@ export class AreaScanService {
     return { lat, lon };
   }
 
+  private calculateSatelliteTimeInZone(
+    satrec: any,
+    position: { lat: number; lon: number },
+    date: Date,
+    radiusDegrees: number
+  ): number {
+    return 0; // Ya no usamos este método
+  }
+
   scanSatellitesOverArea(
     center: { lat: number; lon: number },
     radiusDegrees: number,
     date: Date = new Date()
   ): Observable<any[]> {
     const satellites = SceneManager.satelliteManager?.getAllSatellitesData() || [];
-    const results: any[] = [];
-
-    console.log('Starting area scan:', {
-      center,
-      radiusDegrees
-    });
-    console.log('Total satellites to check:', satellites.length);
+    const currentlyDetected = new Set<string>();
+    const currentSimTime = date;
 
     satellites.forEach(sat => {
       try {
@@ -173,7 +189,6 @@ export class AreaScanService {
         const positionAndVelocity = satellite.propagate(satrec, date);
 
         if (!positionAndVelocity || !positionAndVelocity.position) {
-          console.log(`No position data for satellite ${sat.name}`);
           return;
         }
 
@@ -189,31 +204,124 @@ export class AreaScanService {
         // Calculate distance from center to satellite
         const distance = this.calculateGreatCircleDistance(center, position, position);
 
-        console.log(`Satellite ${sat.name}:`, {
-          position,
-          distance,
-          threshold: radiusDegrees
-        });
-
         // Check if satellite is within the circle
         if (distance <= radiusDegrees) {
-          console.log(`Detected satellite ${sat.name} with distance ${distance} degrees`);
-          results.push({
+          currentlyDetected.add(sat.norad_cat_id);
+
+          // Si el satélite acaba de entrar en la zona
+          if (!this.satelliteEntryTimes.has(sat.norad_cat_id)) {
+            this.satelliteEntryTimes.set(sat.norad_cat_id, currentSimTime);
+          }
+
+          // Actualizar o crear entrada del satélite
+          const entryTime = this.satelliteEntryTimes.get(sat.norad_cat_id)!;
+          const currentTimeInZone = (currentSimTime.getTime() - entryTime.getTime()) / 1000; // Tiempo actual en la zona en segundos
+          const previousTotal = this.satelliteTotalTimes.get(sat.norad_cat_id) || 0;
+          const totalTime = previousTotal + currentTimeInZone;
+
+          this.allDetectedSatellites.set(sat.norad_cat_id, {
             name: sat.name,
             norad_cat_id: sat.norad_cat_id,
-            position: position
+            position: position,
+            totalTime: totalTime,
+            isInZone: true
           });
+        } else {
+          // Si el satélite estaba en la zona y ahora sale
+          if (this.satelliteEntryTimes.has(sat.norad_cat_id)) {
+            const entryTime = this.satelliteEntryTimes.get(sat.norad_cat_id)!;
+            const timeSpent = (currentSimTime.getTime() - entryTime.getTime()) / 1000; // Tiempo en segundos
+            const currentTotal = this.satelliteTotalTimes.get(sat.norad_cat_id) || 0;
+            const newTotal = currentTotal + timeSpent;
+            
+            this.satelliteTotalTimes.set(sat.norad_cat_id, newTotal);
+            this.satelliteEntryTimes.delete(sat.norad_cat_id);
+
+            // Mantener el satélite en la lista pero marcarlo como fuera de la zona
+            if (this.allDetectedSatellites.has(sat.norad_cat_id)) {
+              const satData = this.allDetectedSatellites.get(sat.norad_cat_id)!;
+              this.allDetectedSatellites.set(sat.norad_cat_id, {
+                ...satData,
+                totalTime: newTotal,
+                isInZone: false
+              });
+            }
+          }
         }
       } catch (error) {
-        console.warn(`Error procesando satélite ${sat.name}`, error);
+        // Silently handle errors
       }
     });
 
-    console.log('Scan complete. Detected satellites:', results.length);
+    // Actualizar tiempos para satélites que siguen en la zona
+    for (const [noradId, satData] of this.allDetectedSatellites.entries()) {
+      if (satData.isInZone && this.satelliteEntryTimes.has(noradId)) {
+        const entryTime = this.satelliteEntryTimes.get(noradId)!;
+        const currentTimeInZone = (currentSimTime.getTime() - entryTime.getTime()) / 1000; // Tiempo en segundos
+        const previousTotal = this.satelliteTotalTimes.get(noradId) || 0;
+        const totalTime = previousTotal + currentTimeInZone;
+
+        this.allDetectedSatellites.set(noradId, {
+          ...satData,
+          totalTime: totalTime
+        });
+      }
+    }
+
+    // Guardar los tiempos actualizados
+    try {
+      const timesObject = Object.fromEntries(this.satelliteTotalTimes);
+      const entryTimesObject = Object.fromEntries(
+        Array.from(this.satelliteEntryTimes.entries()).map(([key, value]) => [key, value.getTime()])
+      );
+      sessionStorage.setItem('satelliteTotalTimes', JSON.stringify(timesObject));
+      sessionStorage.setItem('satelliteEntryTimes', JSON.stringify(entryTimesObject));
+    } catch (error) {
+      // Silently handle storage errors
+    }
+
+    // Convertir el Map a array y ordenar por tiempo total
+    const results = Array.from(this.allDetectedSatellites.values())
+      .sort((a, b) => b.totalTime - a.totalTime);
+
     return new Observable(subscriber => {
       subscriber.next(results);
       subscriber.complete();
     });
   }
 
+  setVisible(visible: boolean) {
+    this.isVisibleSubject.next(visible);
+  }
+
+  updateDetectedSatellites(satellites: any[]) {
+    this.detectedSatellitesSubject.next(satellites);
+  }
+
+  getSatelliteTotalTimes(): Map<string, number> {
+    return this.satelliteTotalTimes;
+  }
+
+  updateSatelliteTotalTimes(times: Map<string, number>) {
+    this.satelliteTotalTimes = times;
+    // Guardar los tiempos actualizados
+    try {
+      const timesObject = Object.fromEntries(times);
+      sessionStorage.setItem('satelliteTotalTimes', JSON.stringify(timesObject));
+    } catch (error) {
+      // Silently handle storage errors
+    }
+  }
+
+  private clearData() {
+    // Limpiar los datos del sessionStorage
+    sessionStorage.removeItem('detectedSatellites');
+    sessionStorage.removeItem('satelliteTotalTimes');
+    sessionStorage.removeItem('satelliteEntryTimes');
+    
+    // Limpiar los datos en memoria
+    this.detectedSatellitesSubject.next([]);
+    this.satelliteTotalTimes.clear();
+    this.satelliteEntryTimes.clear();
+  }
 }

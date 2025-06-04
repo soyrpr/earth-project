@@ -45,4 +45,8 @@ export class GlobeService {
       RendererManager.controls.enabled = true;
     }
   }
+
+  getSimulationTime(): Date {
+    return SceneManager.satelliteManager?.getCurrentDate() || new Date();
+  }
 } 

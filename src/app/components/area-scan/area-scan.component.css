@@ -63,6 +63,16 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   font-size: 0.9rem;
   color: #EAEFEF;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+
+.satellite-list li.in-zone {
+  opacity: 1;
+  color: #00ffff;
 }
 
 .satellite-list li:last-child {
@@ -86,4 +96,12 @@
 
 .satellite-list::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
+}
+
+.time-spent {
+  color: #00ffff;
+  font-size: 0.85rem;
+  background: rgba(0, 255, 255, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
 }
