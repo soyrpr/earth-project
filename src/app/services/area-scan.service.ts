@@ -20,24 +20,27 @@ export class AreaScanService {
   private allDetectedSatellites: Map<string, any> = new Map(); // Mantener todos los satélites detectados
 
   constructor() {
-    // Recuperar los tiempos guardados al iniciar el servicio
-    try {
-      const savedTimes = sessionStorage.getItem('satelliteTotalTimes');
-      if (savedTimes) {
-        const timesObject = JSON.parse(savedTimes);
-        this.satelliteTotalTimes = new Map(Object.entries(timesObject));
+    // Solo cargar los tiempos si hay una sesión activa (por ejemplo, si hay satélites detectados)
+    const hasActiveSession = sessionStorage.getItem('detectedSatellites');
+    if (hasActiveSession) {
+      try {
+        const savedTimes = sessionStorage.getItem('satelliteTotalTimes');
+        if (savedTimes) {
+          const timesObject = JSON.parse(savedTimes);
+          this.satelliteTotalTimes = new Map(Object.entries(timesObject));
+        }
+        const savedEntryTimes = sessionStorage.getItem('satelliteEntryTimes');
+        if (savedEntryTimes) {
+          const entryTimesObject = JSON.parse(savedEntryTimes);
+          this.satelliteEntryTimes = new Map(
+            Object.entries(entryTimesObject).map(([key, value]) => [key, new Date(value as number)])
+          );
+        }
+      } catch (error) {
+        this.clearData();
       }
-      const savedEntryTimes = sessionStorage.getItem('satelliteEntryTimes');
-      if (savedEntryTimes) {
-        const entryTimesObject = JSON.parse(savedEntryTimes);
-        // Convertir los timestamps guardados a objetos Date
-        this.satelliteEntryTimes = new Map(
-          Object.entries(entryTimesObject).map(([key, value]) => [key, new Date(value as number)])
-        );
-      }
-    } catch (error) {
-      this.satelliteTotalTimes = new Map();
-      this.satelliteEntryTimes = new Map();
+    } else {
+      this.clearData();
     }
   }
 
@@ -208,6 +211,9 @@ export class AreaScanService {
         if (distance <= radiusDegrees) {
           currentlyDetected.add(sat.norad_cat_id);
 
+          // Obtener el nombre completo del satélite
+          const satelliteName = sat.info?.satname || sat.name || `Satélite ${sat.norad_cat_id}`;
+
           // Si el satélite acaba de entrar en la zona
           if (!this.satelliteEntryTimes.has(sat.norad_cat_id)) {
             this.satelliteEntryTimes.set(sat.norad_cat_id, currentSimTime);
@@ -220,7 +226,7 @@ export class AreaScanService {
           const totalTime = previousTotal + currentTimeInZone;
 
           this.allDetectedSatellites.set(sat.norad_cat_id, {
-            name: sat.name,
+            name: satelliteName,
             norad_cat_id: sat.norad_cat_id,
             position: position,
             totalTime: totalTime,
@@ -241,7 +247,9 @@ export class AreaScanService {
             if (this.allDetectedSatellites.has(sat.norad_cat_id)) {
               const satData = this.allDetectedSatellites.get(sat.norad_cat_id)!;
               this.allDetectedSatellites.set(sat.norad_cat_id, {
-                ...satData,
+                name: satData.name,
+                norad_cat_id: sat.norad_cat_id,
+                position: satData.position,
                 totalTime: newTotal,
                 isInZone: false
               });
@@ -262,8 +270,11 @@ export class AreaScanService {
         const totalTime = previousTotal + currentTimeInZone;
 
         this.allDetectedSatellites.set(noradId, {
-          ...satData,
-          totalTime: totalTime
+          name: satData.name,
+          norad_cat_id: noradId,
+          position: satData.position,
+          totalTime: totalTime,
+          isInZone: satData.isInZone
         });
       }
     }
@@ -282,6 +293,13 @@ export class AreaScanService {
 
     // Convertir el Map a array y ordenar por tiempo total
     const results = Array.from(this.allDetectedSatellites.values())
+      .map(sat => ({
+        name: sat.name,
+        norad_cat_id: sat.norad_cat_id,
+        position: sat.position,
+        totalTime: sat.totalTime,
+        isInZone: sat.isInZone
+      }))
       .sort((a, b) => b.totalTime - a.totalTime);
 
     return new Observable(subscriber => {
@@ -313,6 +331,12 @@ export class AreaScanService {
     }
   }
 
+  resetSatelliteTimes() {
+    this.clearData();
+    this.allDetectedSatellites.clear();
+    this.updateDetectedSatellites([]);
+  }
+
   private clearData() {
     // Limpiar los datos del sessionStorage
     sessionStorage.removeItem('detectedSatellites');
@@ -321,7 +345,7 @@ export class AreaScanService {
     
     // Limpiar los datos en memoria
     this.detectedSatellitesSubject.next([]);
-    this.satelliteTotalTimes.clear();
-    this.satelliteEntryTimes.clear();
+    this.satelliteTotalTimes = new Map();
+    this.satelliteEntryTimes = new Map();
   }
 }

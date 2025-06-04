@@ -1,15 +1,15 @@
-<div class="area-scan-container" *ngIf="isVisible$ | async">
+<div class="area-scan-container" *ngIf="isVisible$ | async" (click)="$event.stopPropagation()">
   <h2>Dibujo de Área</h2>
   
   <div class="instructions">
-    <p>Haz clic en el globo para dibujar un círculo del tamaño de España.</p>
+    <p>Haz clic para dibujar un círculo.</p>
   </div>
 
   <div class="satellite-list" *ngIf="detectedSatellites.length > 0">
     <h3>Satélites detectados</h3>
     <ul>
       <li *ngFor="let satellite of detectedSatellites" [class.in-zone]="satellite.isInZone">
-        {{ satellite.name }} (NORAD: {{ satellite.norad_cat_id }})
+        {{ satellite.name }} <br> (NORAD: {{ satellite.norad_cat_id }})
         <span class="time-spent">Tiempo en zona: {{ satellite.formattedTime }}</span>
       </li>
     </ul>
