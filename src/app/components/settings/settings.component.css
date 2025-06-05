@@ -1,0 +1,41 @@
+.settings-panel {
+  position: fixed;
+  top: 20px;
+  left: 80px;
+  background: #333446;
+  color: #EAEFEF;
+  padding: 1.5rem;
+  border-radius: 10px;
+  width: 300px;
+  z-index: 1000;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.settings-panel h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.2rem;
+  color: #EAEFEF;
+}
+
+.settings-panel label {
+  display: block;
+  margin: 1rem 0 0.5rem 0;
+  font-size: 0.9rem;
+  color: #B8CFCE;
+}
+
+.settings-panel select {
+  width: 100%;
+  padding: 8px;
+  border-radius: 5px;
+  border: none;
+  background: #EAEFEF;
+  color: #333446;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.settings-panel select:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px #B8CFCE;
+}

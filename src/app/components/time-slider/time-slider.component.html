@@ -4,9 +4,9 @@
 
 <div class="time-slider" *ngIf="showControls" (click)="$event.stopPropagation()">
   <div class="content-wrapper">
-    <p><strong>Hora simulada:</strong> {{ simulatedTime | date: 'medium' }}</p>
+    <p><strong data-i18n="simulated_time">Simulated Time:</strong> {{ simulatedTime | date: 'medium' }}</p>
 
-    <label for="datetimePicker">Seleccionar fecha y hora:</label>
+    <label for="datetimePicker" data-i18n="select_date_time">Select date and time:</label>
     <input
       id="datetimePicker"
       type="datetime-local"
@@ -14,7 +14,7 @@
       (change)="onDateTimeChange($event)"
     />
 
-    <p>Velocidad de simulación:</p>
+    <p data-i18n="simulation_speed">Simulation Speed:</p>
     <div class="speed-controls">
       <input
         type="range"
@@ -24,27 +24,31 @@
         (input)="onSpeedChange()"
       />
       <select [(ngModel)]="speedUnit" (change)="onSpeedChange()">
-        <option value="seconds">Segundos</option>
-        <option value="minutes">Minutos</option>
-        <option value="hours">Horas</option>
-        <option value="days">Días</option>
+        <option value="seconds" data-i18n="seconds">Seconds</option>
+        <option value="minutes" data-i18n="minutes">Minutes</option>
+        <option value="hours" data-i18n="hours">Hours</option>
+        <option value="days" data-i18n="days">Days</option>
       </select>
       <span>{{ getFormattedSpeed() }}</span>
     </div>
 
     <div class="controls">
-    <button (click)="toggleSimulation()">
-      <span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 4px;">
-        {{ isSimulating ? 'pause' : 'play_arrow' }}
-      </span>
-      {{ isSimulating ? 'Pausar' : 'Reanudar' }}
-    </button>
-    <button (click)="toggleDirection()">
-      <span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 4px;">
-        {{ timeDirection === 1 ? 'update' : 'history' }}
-      </span>
-      {{ timeDirection === 1 ? 'Avanzando en el tiempo' : 'Retrocediendo en el tiempo' }}
-    </button>
+      <button (click)="toggleSimulation()">
+        <span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 4px;">
+          {{ isSimulating ? 'pause' : 'play_arrow' }}
+        </span>
+        <span [attr.data-i18n]="isSimulating ? 'pause' : 'resume'">
+          {{ isSimulating ? 'Pause' : 'Resume' }}
+        </span>
+      </button>
+      <button (click)="toggleDirection()">
+        <span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 4px;">
+          {{ timeDirection === 1 ? 'update' : 'history' }}
+        </span>
+        <span [attr.data-i18n]="timeDirection === 1 ? 'forward' : 'backward'">
+          {{ timeDirection === 1 ? 'Moving Forward' : 'Moving Backward' }}
+        </span>
+      </button>
     </div>
   </div>
 </div>

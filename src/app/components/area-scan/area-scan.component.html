@@ -1,16 +1,16 @@
 <div class="area-scan-container" *ngIf="isVisible$ | async" (click)="$event.stopPropagation()">
-  <h2>Dibujo de Área</h2>
+  <h2 data-i18n="draw_area">Draw Area</h2>
   
   <div class="instructions">
-    <p>Haz clic para dibujar un círculo.</p>
+    <p data-i18n="click_to_draw">Click to draw a circle.</p>
   </div>
 
   <div class="satellite-list" *ngIf="detectedSatellites.length > 0">
-    <h3>Satélites detectados</h3>
+    <h3 data-i18n="detected_satellites">Detected Satellites</h3>
     <ul>
       <li *ngFor="let satellite of detectedSatellites" [class.in-zone]="satellite.isInZone">
         {{ satellite.name }} <br> (NORAD: {{ satellite.norad_cat_id }})
-        <span class="time-spent">Tiempo en zona: {{ satellite.formattedTime }}</span>
+        <span class="time-spent" data-i18n="time_in_zone">Time in zone: {{ satellite.formattedTime }}</span>
       </li>
     </ul>
   </div>

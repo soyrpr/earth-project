@@ -8,6 +8,7 @@ import { GlobeService } from '../../services/globe.service';
 import { RendererManager } from '../../../core/renderer.manager';
 import * as satellite from 'satellite.js';
 import { TimeSliderService } from '../../services/time-slider.service';
+import { SettingsService } from '../../services/settings.service';
 
 @Component({
   selector: 'app-area-scan',
@@ -37,16 +38,22 @@ export class AreaScanComponent implements OnInit, OnDestroy {
   private detectionCylinder: Mesh | null = null;
   private satelliteEntryTimes: Map<string, number> = new Map();
   private satelliteTotalTimes: Map<string, number> = new Map();
+  private languageSubscription: Subscription;
 
   constructor(
     private areaScanService: AreaScanService,
     private globeService: GlobeService,
     private renderer: Renderer2,
-    private timeSliderService: TimeSliderService
+    private timeSliderService: TimeSliderService,
+    public settingsService: SettingsService
   ) {
     this.isVisible$ = this.areaScanService.isVisible$;
     // Recuperar los tiempos totales guardados
     this.satelliteTotalTimes = this.areaScanService.getSatelliteTotalTimes();
+    this.languageSubscription = this.settingsService.language$.subscribe(() => {
+      // Update any component-specific translations if needed
+      this.updateComponentTranslations();
+    });
   }
 
   ngOnInit() {
@@ -69,6 +76,9 @@ export class AreaScanComponent implements OnInit, OnDestroy {
         }));
       })
     );
+
+    // Initialize with current settings
+    this.updateComponentTranslations();
   }
 
   private setupDrawingMode() {
@@ -177,6 +187,9 @@ export class AreaScanComponent implements OnInit, OnDestroy {
     }
     this.cleanupDrawingMode();
     this.subscription.unsubscribe();
+    if (this.languageSubscription) {
+      this.languageSubscription.unsubscribe();
+    }
   }
 
   private onMouseDown = (event: MouseEvent) => {
@@ -439,5 +452,10 @@ export class AreaScanComponent implements OnInit, OnDestroy {
       this.areaScanService.updateDetectedSatellites(this.detectedSatellites);
       this.areaScanService.updateSatelliteTotalTimes(this.satelliteTotalTimes);
     });
+  }
+
+  private updateComponentTranslations() {
+    // Update any component-specific translations here
+    // For example, if you have any hardcoded strings that need translation
   }
 }

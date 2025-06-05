@@ -192,7 +192,7 @@ export class SceneManager {
 
     infoElement.style.display = 'block';
     infoElement.style.position = 'absolute';
-    infoElement.style.top = '170px';
+    infoElement.style.bottom = '250px';
     infoElement.style.left = '20px';
     infoElement.style.backgroundColor = '#333446';
     infoElement.style.color = '#EAEFEF';

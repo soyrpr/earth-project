@@ -5,6 +5,7 @@ import { SatellitesComponent } from './components/satellites/satellites.componen
 import { MenuButtonsComponent } from './components/menu-buttons/menu-buttons.component';
 import { GlobeComponent } from './components/globe/globe.component';
 import { AreaScanComponent } from './components/area-scan/area-scan.component';
+import { SettingsComponent } from './components/settings/settings.component';
 
 @Component({
   selector: 'app-root',
@@ -15,13 +16,15 @@ import { AreaScanComponent } from './components/area-scan/area-scan.component';
     SatellitesComponent,
     MenuButtonsComponent,
     GlobeComponent,
-    AreaScanComponent
+    AreaScanComponent,
+    SettingsComponent
   ],
   template: `
     <app-menu-buttons #menuButtons></app-menu-buttons>
     <app-time-slider></app-time-slider>
     <app-satellites #satellites></app-satellites>
     <app-area-scan></app-area-scan>
+    <app-settings></app-settings>
     <app-globe></app-globe>
   `,
   styles: []

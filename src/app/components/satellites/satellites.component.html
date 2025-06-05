@@ -1,15 +1,15 @@
 <div class="search-container" (click)="$event.stopPropagation()" [style.display]="isSearchVisible ? 'flex' : 'none'" style="z-index: 1000;">
   <input
     type="text"
-    placeholder="Buscar satélite por nombre..."
+    [placeholder]="settingsService.getTranslation('search_satellite_placeholder')"
     [(ngModel)]="searchText"
     (keyup.enter)="onSearch()"
   />
-  <button (click)="onSearch()" [disabled]="searchStatus === 'loading'">Buscar</button>
+  <button (click)="onSearch()" [disabled]="searchStatus === 'loading'" data-i18n="search">Search</button>
 
   <div class="filter-section">
     <div class="filter-group">
-      <label>Órbita:</label>
+      <label data-i18n="orbit">Orbit:</label>
       <button *ngFor="let orbit of orbitTypes"
               (click)="toggleOrbitType(orbit)"
               [class.active]="selectedOrbitType === orbit">
@@ -18,7 +18,7 @@
     </div>
 
     <div class="filter-group">
-      <label>Tipo:</label>
+      <label data-i18n="type">Type:</label>
       <button *ngFor="let type of specialTypes"
               (click)="toggleSpecialType(type)"
               [class.active]="selectedSpecialType === type">
@@ -27,21 +27,21 @@
     </div>
 
     <div class="filter-group">
-      <label>Clase:</label>
+      <label data-i18n="class">Class:</label>
       <button *ngFor="let cat of categories"
               (click)="toggleCategory(cat)"
               [class.active]="selectedFilters[cat]">
-        {{ cat === 'satellites' ? 'Satélites' : 'Basura' }}
+        {{ cat === 'satellites' ? settingsService.getTranslation('satellites') : settingsService.getTranslation('debris') }}
       </button>
     </div>
   </div>
 
-  <div class="status-message" *ngIf="searchStatus === 'loading'">Buscando satélites...</div>
-  <div class="status-message" *ngIf="searchStatus === 'not-found'">No se encontró ningún satélite con ese nombre.</div>
+  <div class="status-message" *ngIf="searchStatus === 'loading'" data-i18n="searching_satellites">Searching satellites...</div>
+  <div class="status-message" *ngIf="searchStatus === 'not-found'" data-i18n="no_satellites_found">No satellites found with that name.</div>
   <div class="status-message" *ngIf="searchStatus === 'error'">{{ errorMessage }}</div>
 
   <div *ngIf="searchResults.length > 0 && searchStatus === 'ready'" class="results-list">
-    <p>Listado:</p>
+    <p data-i18n="list">List:</p>
     <ul>
       <li *ngFor="let sat of searchResults"
           (click)="focusOnSatellite(sat)"

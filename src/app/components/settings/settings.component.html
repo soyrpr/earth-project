@@ -1,0 +1,14 @@
+<div class="settings-panel" *ngIf="isVisible$ | async" (click)="$event.stopPropagation()">
+    <h3 data-i18n="settings">Settings</h3>
+  
+    <label for="fontSelect" data-i18n="font">Font:</label>
+    <select id="fontSelect" [(ngModel)]="selectedFont" (change)="onFontChange()">
+      <option *ngFor="let font of fonts" [value]="font">{{ font }}</option>
+    </select>
+  
+    <label for="langSelect" data-i18n="language">Language:</label>
+    <select id="langSelect" [(ngModel)]="selectedLanguage" (change)="onLanguageChange()">
+      <option *ngFor="let lang of languages" [value]="lang">{{ lang.toUpperCase() }}</option>
+    </select>
+</div>
+  

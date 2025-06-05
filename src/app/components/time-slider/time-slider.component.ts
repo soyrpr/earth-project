@@ -56,6 +56,11 @@ export class TimeSliderComponent {
   toggleDirection() {
     this.timeDirection *= -1;
   }
+  
+    private updateComponentTranslations() {
+      // Update any component-specific translations here
+      // For example, if you have any hardcoded strings that need translation
+    }
 
   private startRealTimeUpdates() {
     this.realTimeInterval = setInterval(() => {
@@ -134,10 +139,10 @@ export class TimeSliderComponent {
   }
 
   private readonly timeUnitLabels: Record<'seconds' | 'minutes' | 'hours' | 'days', [string, string]> = {
-    seconds: ['segundo', 'segundos'],
-    minutes: ['minuto', 'minutos'],
-    hours: ['hora', 'horas'],
-    days: ['día', 'días']
+    seconds: ['s', 's'],
+    minutes: ['min', 'min'],
+    hours: ['hrs', 'hrs'],
+    days: ['ds', 'ds']
   };
 
   getFormattedSpeed(): string {

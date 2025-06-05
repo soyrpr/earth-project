@@ -5,6 +5,7 @@ import { TimeSliderService } from '../../services/time-slider.service';
 import { SatelliteSearchService } from '../../services/satellite-search.service';
 import { AreaScanService } from '../../services/area-scan.service';
 import { CommonModule } from '@angular/common';
+import { SettingsService } from '../../services/settings.service';
 
 @Component({
   selector: 'app-menu-buttons',
@@ -18,11 +19,13 @@ export class MenuButtonsComponent {
   isTimeActive = false;
   isSearchActive = false;
   isAreaScanActive = false;
+  isSettingsActive = false;
 
   constructor(
     private timeSliderService: TimeSliderService,
     private satelliteSearchService: SatelliteSearchService,
-    private areaScanService: AreaScanService
+    private areaScanService: AreaScanService,
+    private settingsService: SettingsService
   ) {}
 
   toggleTime() {
@@ -38,5 +41,10 @@ export class MenuButtonsComponent {
   toggleAreaScan() {
     this.isAreaScanActive = !this.isAreaScanActive;
     this.areaScanService.toggleVisibility();
+  }
+
+  toggleSettings() {
+    this.isSettingsActive = !this.isSettingsActive;
+    this.settingsService.toggleVisibility();
   }
 }

@@ -9,6 +9,7 @@ import { loadAndMergeSatelliteData } from '../../../assets/data/data-loader';
 import { RendererManager } from '../../../core/renderer.manager';
 import { Color } from 'three';
 import { HostListener } from '@angular/core';
+import { SettingsService } from '../../services/settings.service';
 
 @Component({
   selector: 'app-satellites',
@@ -44,7 +45,17 @@ export class SatellitesComponent implements OnInit, OnDestroy {
     debris: false,
   };
 
-  constructor(private satelliteSearchService: SatelliteSearchService) {}
+  private languageSubscription: Subscription;
+
+  constructor(
+    private satelliteSearchService: SatelliteSearchService,
+    public settingsService: SettingsService
+  ) {
+    this.languageSubscription = this.settingsService.language$.subscribe(() => {
+      // Update any component-specific translations if needed
+      this.updateComponentTranslations();
+    });
+  }
 
   async ngOnInit(): Promise<void> {
     this.searchSubscription = this.satelliteSearchService.searchVisible$.subscribe(visible => {
@@ -67,12 +78,23 @@ export class SatellitesComponent implements OnInit, OnDestroy {
         sat.info?.satname?.toLowerCase().includes('starlink')
       );
     }
+
+    // Initialize with current settings
+    this.updateComponentTranslations();
   }
 
   ngOnDestroy(): void {
     if (this.searchSubscription) {
       this.searchSubscription.unsubscribe();
     }
+    if (this.languageSubscription) {
+      this.languageSubscription.unsubscribe();
+    }
+  }
+
+  private updateComponentTranslations() {
+    // Update any component-specific translations here
+    // For example, if you have any hardcoded strings that need translation
   }
 
   async onSearch() {

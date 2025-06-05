@@ -1,59 +1,154 @@
-# EarthProject
+# Earth Project
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 19.2.5.
+Este proyecto es una aplicación web desarrollada con Angular que visualiza datos de la Tierra utilizando Three.js para gráficos 3D.
 
-## Development server
+## Estructura del Proyecto
 
-To start a local development server, run:
+### Directorios Principales
 
-```bash
-ng serve
-```
+- `src/`: Contiene el código fuente principal de la aplicación
+  - `app/`: Componentes, servicios y módulos de la aplicación
+  - `core/`: Servicios y utilidades core de la aplicación
+  - `assets/`: Recursos estáticos (imágenes, modelos 3D, etc.)
+  - `styles.css`: Estilos globales de la aplicación
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+### Archivos de Configuración
 
-## Code scaffolding
+- `angular.json`: Configuración principal de Angular
+- `tsconfig.json`: Configuración de TypeScript
+- `package.json`: Dependencias y scripts del proyecto
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+## Componentes Principales
 
-```bash
-ng generate component component-name
-```
+### Generación de Componentes
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
+Los componentes en este proyecto se generan utilizando el CLI de Angular con el siguiente comando:
 
 ```bash
-ng build
+ng generate component [nombre-del-componente]
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+Esto crea:
+- Un archivo `.component.ts` con la lógica del componente
+- Un archivo `.component.html` con la plantilla
+- Un archivo `.component.css` con los estilos
+- Un archivo `.component.spec.ts` para pruebas
 
-## Running unit tests
+### Estructura de Componentes
 
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
+Cada componente sigue la arquitectura de Angular con:
+- Decorador `@Component`
+- Selector único
+- Plantilla HTML
+- Estilos CSS/SCSS
+- Lógica TypeScript
+
+## Servicios
+
+Los servicios se generan con:
 
 ```bash
-ng test
+ng generate service [nombre-del-servicio]
 ```
 
-## Running end-to-end tests
+Los servicios son singleton que manejan:
+- Lógica de negocio
+- Comunicación con APIs
+- Estado de la aplicación
+- Funcionalidades compartidas
 
-For end-to-end (e2e) testing, run:
+## Módulos
+
+Los módulos se generan con:
 
 ```bash
-ng e2e
+ng generate module [nombre-del-modulo]
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+Los módulos organizan:
+- Componentes relacionados
+- Servicios
+- Directivas
+- Pipes
 
-## Additional Resources
+## Desarrollo
 
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+### Requisitos Previos
+
+- Node.js (versión LTS recomendada)
+- npm (incluido con Node.js)
+- Angular CLI (`npm install -g @angular/cli`)
+
+### Instalación
+
+1. Clonar el repositorio
+2. Instalar dependencias:
+```bash
+npm install
+```
+
+### Comandos de Desarrollo
+
+- `ng serve`: Inicia el servidor de desarrollo
+- `ng build`: Compila el proyecto
+- `ng test`: Ejecuta las pruebas
+- `ng lint`: Ejecuta el linter
+
+## Construcción y Despliegue
+
+### Producción
+
+Para generar una versión de producción:
+
+```bash
+ng build --prod
+```
+
+Esto crea una versión optimizada en el directorio `dist/`.
+
+### Despliegue
+
+La aplicación puede ser desplegada en cualquier servidor web estático o servicios como:
+- GitHub Pages
+- Netlify
+- Vercel
+- Firebase Hosting
+
+## Estructura de Datos
+
+### Modelos
+
+Los modelos de datos se definen como interfaces TypeScript en archivos separados, típicamente en:
+- `src/app/models/`
+
+### Servicios de Datos
+
+Los servicios que manejan datos se encuentran en:
+- `src/app/services/`
+
+## Estilos y Temas
+
+- Los estilos globales están en `src/styles.css`
+- Los componentes tienen sus propios estilos scoped
+- Se utilizan variables CSS para temas y colores
+
+## Pruebas
+
+- Pruebas unitarias: `ng test`
+- Pruebas e2e: `ng e2e`
+- Los archivos de prueba usan el patrón `.spec.ts`
+
+## Convenciones de Código
+
+- Nombres de archivos: kebab-case
+- Nombres de clases: PascalCase
+- Nombres de métodos y variables: camelCase
+- Interfaces: prefijo 'I' (ej: IUserData)
+- Enums: PascalCase
+
+## Documentación
+
+La documentación del código se mantiene usando:
+- Comentarios JSDoc para funciones y clases
+- README.md para documentación general
+- Comentarios inline para lógica compleja

@@ -3,6 +3,14 @@
 </head>
 <div class="menu-buttons" (click)="$event.stopPropagation()">
   <button
+  class="menu-button"
+  [class.active]="isSettingsActive"
+  (click)="toggleSettings()"
+  title="Ajustes"
+>
+  <i class="material-icons">settings</i>
+</button>
+  <button
     class="menu-button"
     [class.active]="isTimeActive"
     (click)="toggleTime()"
