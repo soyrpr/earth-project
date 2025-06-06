@@ -1,22 +1,28 @@
-import { Component } from "@angular/core";
-import { CommonModule } from '@angular/common';  // <-- importa CommonModule
+import { Component, AfterViewInit } from "@angular/core";
+import { CommonModule } from '@angular/common';
 import { RendererManager } from "../../../core/renderer.manager";
 import { SceneManager } from "../../../core/scene.manager";
-import { EarthComponent } from "../earth/earth.component";
-import { StarfieldComponent } from "../starfield/starfield.component";
-import { SatellitesComponent } from "../satellites/satellites.component";
 
 @Component({
   selector: 'app-globe',
-  templateUrl: './globe.component.html',
-  styleUrls: ['./globe.component.css'],
+  standalone: true,
   imports: [
-    CommonModule,        // <-- importa CommonModule para usar *ngIf, *ngFor, etc.
-    EarthComponent,
-    // StarfieldComponent,
-  ]
+    CommonModule
+  ],
+  template: `
+    <canvas id="globeCanvas"></canvas>
+  `,
+  styles: [`
+    canvas {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+  `]
 })
-export class GlobeComponent {
+export class GlobeComponent implements AfterViewInit {
   sceneManagerReady = false;
 
   ngOnInit() {
@@ -26,5 +32,9 @@ export class GlobeComponent {
 
   ngAfterViewInit() {
     RendererManager.start();
+    // Importar el visualizador de la Tierra
+    import('../../earth-viewer/transition').then(() => {
+      console.log('Earth viewer initialized');
+    });
   }
 }
